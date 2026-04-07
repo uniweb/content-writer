@@ -1,0 +1,43 @@
+{
+    "name": "@uniweb/content-writer",
+    "version": "0.1.0",
+    "description": "ProseMirror document structure to Markdown converter",
+    "type": "module",
+    "main": "src/index.js",
+    "exports": {
+        ".": "./src/index.js"
+    },
+    "scripts": {
+        "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+        "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch"
+    },
+    "keywords": [
+        "markdown",
+        "prosemirror",
+        "serializer"
+    ],
+    "author": "Proximify Inc.",
+    "license": "GPL-3.0-or-later",
+    "dependencies": {
+        "js-yaml": "^4.1.0"
+    },
+    "devDependencies": {
+        "@uniweb/content-reader": "workspace:*",
+        "jest": "^29.7.0"
+    },
+    "jest": {
+        "testEnvironment": "node",
+        "verbose": true
+    },
+    "directories": {
+        "test": "tests"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/uniweb/content-writer.git"
+    },
+    "bugs": {
+        "url": "https://github.com/uniweb/content-writer/issues"
+    },
+    "homepage": "https://github.com/uniweb/content-writer#readme"
+}
