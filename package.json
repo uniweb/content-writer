@@ -1,6 +1,6 @@
 {
     "name": "@uniweb/content-writer",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "description": "ProseMirror document structure to Markdown converter",
     "type": "module",
     "main": "src/index.js",
