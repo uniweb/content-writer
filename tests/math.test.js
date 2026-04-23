@@ -59,4 +59,14 @@ describe('Math round-trip', () => {
     const { serialized } = roundTrip('$$E = mc^2$$')
     expect(serialized).toContain('$$E = mc^2$$')
   })
+
+  test('labeled fenced math preserves id through roundtrip', () => {
+    const input = '```math:einstein\nE = mc^2\n```'
+    const { parsed, serialized, reparsed } = roundTrip(input)
+    expect(serialized).toContain('```math:einstein')
+    expect(reparsed).toEqual(parsed)
+    // The id is carried as an attribute on math_display.
+    const node = parsed.content.find((n) => n.type === 'math_display')
+    expect(node?.attrs?.id).toBe('einstein')
+  })
 })

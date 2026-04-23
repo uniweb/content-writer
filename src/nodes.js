@@ -63,15 +63,22 @@ export function serializeCodeBlock(node) {
 /**
  * Serialize a display-math node back to markdown.
  *
+ * Labeled math (with an id) always uses the fenced form `` ```math:<id> ``
+ * because `$$...$$` has no label syntax.
+ *
  * Single-line LaTeX uses `$$...$$` (compact, ecosystem-standard).
  * Multi-line LaTeX uses fenced ```math (friendlier diffs, no ambiguity
  * with paragraphs that contain a stray `$$`).
  *
- * @param {Object} node - math_display node with attrs.latex
+ * @param {Object} node - math_display node with attrs.latex and optional attrs.id
  * @returns {string} Markdown math block
  */
 export function serializeMathDisplay(node) {
   const latex = node.attrs?.latex || ''
+  const id = node.attrs?.id
+  if (id) {
+    return '```math:' + id + '\n' + latex + '\n```'
+  }
   return latex.includes('\n')
     ? '```math\n' + latex + '\n```'
     : '$$' + latex + '$$'
