@@ -61,6 +61,23 @@ export function serializeCodeBlock(node) {
 }
 
 /**
+ * Serialize a display-math node back to markdown.
+ *
+ * Single-line LaTeX uses `$$...$$` (compact, ecosystem-standard).
+ * Multi-line LaTeX uses fenced ```math (friendlier diffs, no ambiguity
+ * with paragraphs that contain a stray `$$`).
+ *
+ * @param {Object} node - math_display node with attrs.latex
+ * @returns {string} Markdown math block
+ */
+export function serializeMathDisplay(node) {
+  const latex = node.attrs?.latex || ''
+  return latex.includes('\n')
+    ? '```math\n' + latex + '\n```'
+    : '$$' + latex + '$$'
+}
+
+/**
  * Serialize a data block node.
  * @param {Object} node - Data block node with attrs.tag and attrs.data
  * @returns {string} Tagged fenced code block with serialized data

@@ -222,6 +222,10 @@ function serializePlainNode(node) {
   if (node.type === 'image') {
     return serializeInlineImage(node)
   }
+  if (node.type === 'math_inline') {
+    const latex = node.attrs?.latex || ''
+    return node.attrs?.display ? '$$' + latex + '$$' : '$' + latex + '$'
+  }
   if (node.type !== 'text') return ''
   return serializeTextWithMarks(node.text, node.marks || [])
 }

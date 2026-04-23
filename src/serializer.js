@@ -16,6 +16,7 @@ import {
   serializeOrderedList,
   serializeDivider,
   serializeTable,
+  serializeMathDisplay,
   setSerializer,
 } from './nodes.js'
 
@@ -31,6 +32,7 @@ const NODE_SERIALIZERS = {
   orderedList: serializeOrderedList,
   divider: serializeDivider,
   table: serializeTable,
+  math_display: serializeMathDisplay,
 }
 
 /**
