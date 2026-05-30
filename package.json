@@ -23,7 +23,7 @@
     },
     "devDependencies": {
         "@uniweb/content-reader": "workspace:*",
-        "vitest": "^2.0.0"
+        "vitest": "^4.1.7"
     },
     "directories": {
         "test": "tests"
