@@ -8,8 +8,8 @@
         ".": "./src/index.js"
     },
     "scripts": {
-        "test": "NODE_OPTIONS=--experimental-vm-modules jest",
-        "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch"
+        "test": "vitest run",
+        "test:watch": "vitest"
     },
     "keywords": [
         "markdown",
@@ -23,11 +23,7 @@
     },
     "devDependencies": {
         "@uniweb/content-reader": "workspace:*",
-        "jest": "^29.7.0"
-    },
-    "jest": {
-        "testEnvironment": "node",
-        "verbose": true
+        "vitest": "^2.0.0"
     },
     "directories": {
         "test": "tests"
