@@ -36,10 +36,12 @@
  * ## What it deliberately does NOT map (left for the serializer's
  * no-silent-drop guard to report — a tracked capability gap)
  *
- *   - Media that carries only an asset identifier (a CDN asset id, not a
- *     URL) or an inline `svg` blob — blocked on an asset/bytes channel.
- *     There is no faithful `![](url)` form for an asset we can't resolve
- *     to a URL, so guessing one would be wrong.
+ *   - Media that carries only an asset identifier (not a direct `url`/`src`)
+ *     or an inline `svg` blob. Media is always a public URL (uploaded to a
+ *     standard asset domain), so an identifier RESOLVES to a URL — this is a
+ *     resolution task, not a bytes channel. Pending confirmation of the exact
+ *     identifier→URL scheme for content media, normalize maps only the direct
+ *     `url`/`src` + icon `library`+`name` sub-cases; the rest hit the guard.
  *   - `FormBlock` — the editor node carries `activeSchemaId` + filled
  *     `data`; the framework `yaml:form` block carries a form *definition*.
  *     Different shapes; mapping needs a decision, not a guess.
