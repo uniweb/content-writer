@@ -36,12 +36,13 @@
  * ## What it deliberately does NOT map (left for the serializer's
  * no-silent-drop guard to report — a tracked capability gap)
  *
- *   - Media that carries only an asset identifier (not a direct `url`/`src`)
- *     or an inline `svg` blob. Media is always a public URL (uploaded to a
- *     standard asset domain), so an identifier RESOLVES to a URL — this is a
- *     resolution task, not a bytes channel. Pending confirmation of the exact
- *     identifier→URL scheme for content media, normalize maps only the direct
- *     `url`/`src` + icon `library`+`name` sub-cases; the rest hit the guard.
+ *   - Media that carries only a structured asset identifier (no direct
+ *     `url`/`src`) or an inline `svg` blob. Media references are written
+ *     VERBATIM — the codec does not resolve or render; the kit Image/Video
+ *     components resolve the reference at render time. The common case (a
+ *     `url`/`src` on the node) is handled by writing it verbatim; an
+ *     identifier-only node is the edge (carry it verbatim once its form is
+ *     confirmed), and inline `svg` blobs hit the guard.
  *   - `FormBlock` — the editor node carries `activeSchemaId` + filled
  *     `data`; the framework `yaml:form` block carries a form *definition*.
  *     Different shapes; mapping needs a decision, not a guess.
