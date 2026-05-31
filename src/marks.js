@@ -5,7 +5,7 @@
  */
 
 import { serializeAttributes } from './attributes.js'
-import { warnUnmappedMark } from './diagnostics.js'
+import { warnUnmappedMark, warnUnmappedNode } from './diagnostics.js'
 
 /**
  * Marks the markdown serializer can represent. Any other mark on an
@@ -78,6 +78,41 @@ function serializeButtonSuffix(mark) {
  */
 function serializeSpanSuffix(mark) {
   return serializeAttributes(mark.attrs || {})
+}
+
+/**
+ * Serialize an inset_ref node (a foundation-component reference) back to
+ * markdown. Shared by both the block path (the document-level node
+ * serializer) and the inline path (mid-prose insets, cites, refs) so a
+ * single definition stays the inverse of the content-reader parser.
+ *
+ *   visual  (the `!` form, default)  → ![label](@Component){attrs}
+ *   text    (embedKind: 'text')      → [label](@Component){attrs}
+ *   Cite/Ref text-inset with a key   → [@key] / [#id] {attrs}  (sigil shorthand)
+ *
+ * `label` is the reference key (keyed form) when present, else the alt
+ * text. `component`/`embedKind`/`alt`/`key` are structural and consumed
+ * here; everything else in attrs becomes curly-brace attributes.
+ *
+ * Visual is the parser's default (block.js treats `embedKind !== 'text'`
+ * as visual, and the inset extractor omits the default), so the `!` is
+ * emitted unless `embedKind` is explicitly `'text'`.
+ */
+export function serializeInsetRef(node) {
+  const { component, embedKind, alt, key, ...rest } = node.attrs || {}
+  const attrStr = serializeAttributes(rest)
+  const isText = embedKind === 'text'
+
+  // A keyed Cite/Ref text-inset round-trips to its sigil shorthand —
+  // [@key] / [#id] — the cleanest canonical form and exactly what the
+  // cite/ref tokenizers produce. (key already carries its @/# sigil.)
+  if (isText && key && (component === 'Cite' || component === 'Ref')) {
+    return `[${key}]${attrStr}`
+  }
+
+  const label = key ?? alt ?? ''
+  const bang = isText ? '' : '!'
+  return `${bang}[${label}](@${component})${attrStr}`
 }
 
 /**
@@ -245,11 +280,20 @@ function serializePlainNode(node) {
   if (node.type === 'image') {
     return serializeInlineImage(node)
   }
+  if (node.type === 'inset_ref') {
+    return serializeInsetRef(node)
+  }
   if (node.type === 'math_inline') {
     const latex = node.attrs?.latex || ''
     return node.attrs?.display ? '$$' + latex + '$$' : '$' + latex + '$'
   }
-  if (node.type !== 'text') return ''
+  if (node.type !== 'text') {
+    // No silent drops: an inline node we have no markdown form for is
+    // still omitted (we can't invent one) but reported loudly, the same
+    // contract the block path follows.
+    warnUnmappedNode(node)
+    return ''
+  }
   return serializeTextWithMarks(node.text, node.marks || [])
 }
 

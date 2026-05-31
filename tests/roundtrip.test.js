@@ -228,6 +228,59 @@ describe('Round-trip: Component References', () => {
   )
 })
 
+describe('Round-trip: Inline insets, cites, and refs', () => {
+  testRoundTrip(
+    'Text with [@darwin1859] citation.',
+    'inline cite shorthand'
+  )
+
+  testRoundTrip(
+    'Multi [@a;@b]{page=42} cite.',
+    'multi-cite with locator'
+  )
+
+  testRoundTrip(
+    'See [#fig1] here.',
+    'inline cross-reference shorthand'
+  )
+
+  testRoundTrip(
+    'See [#a;#b]{class=compact} together.',
+    'multi-ref with attrs'
+  )
+
+  testRoundTrip(
+    'Inline [the label](@Tooltip){variant=compact} here.',
+    'inline textual inset with label and params'
+  )
+
+  testRoundTrip(
+    'Visual ![alt text](@Badge){size=sm} mid prose.',
+    'inline visual inset mid-paragraph'
+  )
+
+  testRoundTrip(
+    'Keyed visual ![@darwin](@Cite) mid prose.',
+    'inline keyed visual inset'
+  )
+
+  // A keyed Cite/Ref written in the explicit link form normalizes to the
+  // sigil shorthand — both parse to the same node.
+  test('keyed cite in link form normalizes to shorthand', () => {
+    const markdown = 'Keyed [@darwin](@Cite){page=10} ref.'
+    const parsed = markdownToProseMirror(markdown)
+    const serialized = proseMirrorToMarkdown(parsed)
+    expect(serialized).toBe('Keyed [@darwin]{page=10} ref.')
+    const reparsed = markdownToProseMirror(serialized)
+    expect(reparsed).toEqual(parsed)
+  })
+
+  testRoundTrip(
+    'A [@key] cite and an [#id] ref in one paragraph.',
+    'cite and ref in the same paragraph'
+  )
+})
+
 describe('Round-trip: Code', () => {
   testRoundTrip(
     '```javascript\nconst x = 1;\nconsole.log(\'x:\', x);\n```',

@@ -4,8 +4,12 @@
  * Each function takes a ProseMirror node and returns a markdown string.
  */
 
-import { serializeInlineContent, serializeBlockImage } from './marks.js'
-import { serializeAttributes } from './attributes.js'
+import { serializeInlineContent, serializeBlockImage, serializeInsetRef } from './marks.js'
+
+// inset_ref serialization is shared with the inline path; it lives in
+// marks.js (alongside the other inline-attribute serializers) and is
+// re-exported here so the document-level node serializer can register it.
+export { serializeInsetRef }
 
 /**
  * Serialize a heading node.
@@ -34,18 +38,6 @@ export function serializeParagraph(node) {
  */
 export function serializeImage(node) {
   return serializeBlockImage(node)
-}
-
-/**
- * Serialize an inset_ref node (component reference).
- * @param {Object} node - Inset ref node with attrs.component
- * @returns {string} Markdown component reference
- */
-export function serializeInsetRef(node) {
-  const { component, alt, ...rest } = node.attrs || {}
-  const altPart = alt || ''
-  const attrStr = serializeAttributes(rest)
-  return `![${altPart}](@${component})${attrStr}`
 }
 
 /**

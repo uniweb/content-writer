@@ -166,4 +166,33 @@ describe('no-silent-drop guard: unmappable nodes are reported, not lost', () => 
     )
     expect(warnings).toEqual([])
   })
+
+  test('an inline inset_ref is serialized, not silently dropped', () => {
+    const md = proseMirrorToMarkdown(
+      doc(
+        para(
+          { type: 'text', text: 'See ' },
+          { type: 'inset_ref', attrs: { component: 'Cite', embedKind: 'text', key: '@darwin', alt: null } },
+          { type: 'text', text: ' here.' }
+        )
+      )
+    )
+    expect(md).toBe('See [@darwin] here.')
+    expect(warnings).toEqual([]) // a known inline node — no warning
+  })
+
+  test('an unmapped inline node warns rather than vanishing', () => {
+    const md = proseMirrorToMarkdown(
+      doc(
+        para(
+          { type: 'text', text: 'before ' },
+          { type: 'FancyInlineWidget', attrs: { id: 'x' } },
+          { type: 'text', text: ' after' }
+        )
+      )
+    )
+    // the surrounding text survives; the unmapped node is omitted but reported
+    expect(md).toBe('before  after')
+    expect(warnings.some((m) => m.includes('FancyInlineWidget'))).toBe(true)
+  })
 })
