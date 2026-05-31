@@ -5,6 +5,26 @@
  */
 
 import { serializeAttributes } from './attributes.js'
+import { warnUnmappedMark } from './diagnostics.js'
+
+/**
+ * Marks the markdown serializer can represent. Any other mark on an
+ * inline node has its styling dropped (the text is still emitted) and is
+ * reported by the no-silent-drop guard — e.g. editor-dialect `highlight`,
+ * `textStyle` (colour), `strike`, `underline`, `uniqueID`, which need a
+ * named-inline-style mapping decision.
+ */
+const KNOWN_MARKS = new Set(['bold', 'italic', 'code', 'link', 'button', 'span'])
+
+/** Report any inline mark we have no markdown form for (deduped per type). */
+function reportUnknownMarks(content) {
+  for (const node of content) {
+    if (!node?.marks) continue
+    for (const mark of node.marks) {
+      if (!KNOWN_MARKS.has(mark.type)) warnUnmappedMark(mark.type)
+    }
+  }
+}
 
 /**
  * Check if a node has a specific mark type.
@@ -137,6 +157,9 @@ export function serializeBlockImage(node) {
  */
 export function serializeInlineContent(content) {
   if (!content || content.length === 0) return ''
+
+  // No silent drops: flag any mark we can't represent before serializing.
+  reportUnknownMarks(content)
 
   // Pre-process: group nodes by wrapping marks (link, button, span)
   const segments = groupByWrappingMarks(content)

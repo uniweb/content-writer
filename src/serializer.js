@@ -19,6 +19,8 @@ import {
   serializeMathDisplay,
   setSerializer,
 } from './nodes.js'
+import { normalizeDialect } from './normalize.js'
+import { warnUnmappedNode } from './diagnostics.js'
 
 const NODE_SERIALIZERS = {
   heading: serializeHeading,
@@ -42,7 +44,14 @@ const NODE_SERIALIZERS = {
  */
 export function serializeNode(node) {
   const serializer = NODE_SERIALIZERS[node.type]
-  if (!serializer) return null
+  if (!serializer) {
+    // No silent drops: an unmapped node is still omitted (we have no
+    // markdown form for it) but reported loudly. Editor-dialect content
+    // should be normalized first (normalizeDialect); whatever reaches
+    // here unmapped is a tracked capability gap (§8).
+    warnUnmappedNode(node)
+    return null
+  }
   return serializer(node)
 }
 
@@ -56,6 +65,10 @@ setSerializer(serializeNode)
  */
 export function serializeDoc(doc) {
   if (!doc?.content) return ''
+
+  // Normalize editor-dialect (or mixed-dialect) input onto the framework
+  // dialect the node serializers consume. No-op for framework-dialect docs.
+  doc = normalizeDialect(doc)
 
   return doc.content
     .map(node => serializeNode(node))

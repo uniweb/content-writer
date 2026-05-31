@@ -8,6 +8,8 @@
 export { serializeDoc as proseMirrorToMarkdown } from './serializer.js'
 export { serializeFrontmatter } from './frontmatter.js'
 export { docToPlainText } from './plain-text.js'
+export { normalizeDialect } from './normalize.js'
+export { setDiagnosticsReporter, resetDiagnostics } from './diagnostics.js'
 
 import { serializeDoc } from './serializer.js'
 import { serializeFrontmatter } from './frontmatter.js'
