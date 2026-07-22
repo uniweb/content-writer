@@ -358,3 +358,34 @@ describe('Round-trip: Mixed Content', () => {
     expect(reparsed).toEqual(parsed)
   })
 })
+
+describe('Round-trip: Hard breaks', () => {
+  // A hard break used to become a "\n" text node, which re-parsed as a SOFT
+  // break — so the break was silently downgraded on every round trip. It is a
+  // `hardBreak` node now, and both markdown spellings converge on the
+  // backslash form.
+  testRoundTrip('line one\\\nline two', 'backslash hard break')
+  testRoundTrip('a\\\nb\\\nc', 'consecutive hard breaks')
+  testRoundTrip('**bold**\\\nplain', 'hard break after a mark')
+
+  test('two-space spelling normalizes to backslash and keeps the break', () => {
+    const parsed = markdownToProseMirror('line one  \nline two')
+    expect(parsed.content[0].content).toEqual([
+      { type: 'text', text: 'line one' },
+      { type: 'hardBreak' },
+      { type: 'text', text: 'line two' }
+    ])
+    // One-time source normalization; the break itself survives.
+    const serialized = proseMirrorToMarkdown(parsed).trim()
+    expect(serialized).toBe('line one\\\nline two')
+    expect(markdownToProseMirror(serialized)).toEqual(parsed)
+  })
+
+  test('a soft break stays soft — it is a space, not a break', () => {
+    const parsed = markdownToProseMirror('wrapped\nparagraph')
+    expect(parsed.content[0].content).toEqual([
+      { type: 'text', text: 'wrapped\nparagraph' }
+    ])
+    expect(proseMirrorToMarkdown(parsed).trim()).toBe('wrapped\nparagraph')
+  })
+})

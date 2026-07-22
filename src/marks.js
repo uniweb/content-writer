@@ -287,6 +287,12 @@ function serializePlainNode(node) {
     const latex = node.attrs?.latex || ''
     return node.attrs?.display ? '$$' + latex + '$$' : '$' + latex + '$'
   }
+  if (node.type === 'hardBreak') {
+    // Backslash rather than the two-trailing-spaces spelling: it survives
+    // editors, formatters and pre-commit hooks that strip trailing whitespace,
+    // and it is visible in a diff. Both spellings read back as a hard break.
+    return '\\\n'
+  }
   if (node.type !== 'text') {
     // No silent drops: an inline node we have no markdown form for is
     // still omitted (we can't invent one) but reported loudly, the same

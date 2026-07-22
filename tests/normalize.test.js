@@ -195,4 +195,27 @@ describe('no-silent-drop guard: unmappable nodes are reported, not lost', () => 
     expect(md).toBe('before  after')
     expect(warnings.some((m) => m.includes('FancyInlineWidget'))).toBe(true)
   })
+
+  test('a legacy standalone "\\n" text node self-heals to a hard break', () => {
+    const md = proseMirrorToMarkdown(
+      doc(
+        para(
+          { type: 'text', text: 'line one' },
+          { type: 'text', text: '\n' },
+          { type: 'text', text: 'line two' }
+        )
+      )
+    )
+    expect(md.trim()).toBe('line one\\\nline two')
+    expect(warnings).toEqual([]) // healed, not reported as unmapped
+  })
+
+  test('a newline INSIDE a text node is a soft break and must not be converted', () => {
+    // The narrow rule matters: this is an ordinary wrapped paragraph, which is
+    // a space. Converting it would inject a break into every wrapped paragraph.
+    const md = proseMirrorToMarkdown(
+      doc(para({ type: 'text', text: 'wrapped\nparagraph' }))
+    )
+    expect(md.trim()).toBe('wrapped\nparagraph')
+  })
 })
