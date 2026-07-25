@@ -144,8 +144,8 @@ export function serializeBulletList(node, indent = 0) {
   if (!node.content) return ''
   const prefix = '  '.repeat(indent)
   return node.content
-    .map(item => serializeListItem(item, `${prefix}- `, indent))
-    .join('\n')
+    .map(item => serializeListItem(item, `${prefix}- `, indent, isLoose(node)))
+    .join(itemSeparator(node))
 }
 
 /**
@@ -159,8 +159,32 @@ export function serializeOrderedList(node, indent = 0) {
   const start = node.attrs?.start || 1
   const prefix = '  '.repeat(indent)
   return node.content
-    .map((item, i) => serializeListItem(item, `${prefix}${start + i}. `, indent))
-    .join('\n')
+    .map((item, i) => serializeListItem(item, `${prefix}${start + i}. `, indent, isLoose(node)))
+    .join(itemSeparator(node))
+}
+
+/**
+ * What goes between two list items.
+ *
+ * A loose list — one the author spaced out with blank lines — keeps that
+ * spacing. `attrs.loose` is recorded by content-reader; a list without it is
+ * tight, which is both the common case and the safe default for documents
+ * written before the flag existed.
+ *
+ * @param {Object} node - A bulletList or orderedList node
+ * @returns {string}
+ */
+function itemSeparator(node) {
+  return isLoose(node) ? '\n\n' : '\n'
+}
+
+/**
+ * Did the author space this list out?
+ * @param {Object} node - A bulletList or orderedList node
+ * @returns {boolean}
+ */
+function isLoose(node) {
+  return Boolean(node.attrs?.loose)
 }
 
 /**
@@ -168,9 +192,10 @@ export function serializeOrderedList(node, indent = 0) {
  * @param {Object} node - List item node with content
  * @param {string} bullet - The bullet prefix (e.g., "- " or "1. ")
  * @param {number} indent - Current indentation level
+ * @param {boolean} [loose=false] - Whether the parent list is loose
  * @returns {string} Markdown list item
  */
-function serializeListItem(node, bullet, indent) {
+function serializeListItem(node, bullet, indent, loose = false) {
   if (!node.content) return bullet
 
   const parts = []
@@ -192,7 +217,9 @@ function serializeListItem(node, bullet, indent) {
     }
   }
 
-  return parts.join('\n')
+  // In a loose list the item's own blocks are blank-line separated too — the
+  // spacing is a property of the whole list, not just the gaps between items.
+  return parts.join(loose ? '\n\n' : '\n')
 }
 
 /**

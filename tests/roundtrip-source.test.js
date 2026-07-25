@@ -42,7 +42,13 @@ function normalize(markdown) {
       // whitespace-insensitive between pipes, so `|---|---|` and
       // `| --- | --- |` are the same table — as are `| |` and `|  |`.
       .replace(/^\|.*\|$/gm, normalizeTableRow)
-      // Trailing whitespace and the final newline.
+      // Hard breaks have two spellings. Two trailing spaces is the classic
+      // one; the serializer deliberately emits a backslash instead, because it
+      // survives editors and pre-commit hooks that strip trailing whitespace.
+      // Fold both to the backslash so a real hard break is not read as a diff
+      // — and so stripping trailing space below cannot silently delete one.
+      .replace(/[ \t]{2,}$/gm, '\\')
+      // Remaining trailing whitespace, and the final newline.
       .replace(/[ \t]+$/gm, '')
       .trim()
   )
@@ -82,18 +88,23 @@ const CANONICAL_FORMS = {
  * then has to come out, so this list can only shrink.
  */
 const KNOWN_DEFECTS = {
-  // D2 and D5 were here — bold mishandled around a code span, and a bold link
-  // re-nested — until the serializer was taught to honor `node.marks` order
-  // (marks are ordered innermost-first, and the semantic parser already read
-  // them that way). Both fixtures now round-trip to their source, so they are
-  // asserted as such above rather than allowlisted here. This is the list
-  // doing its job: fixing a defect breaks its entry and forces the removal.
-  'defect-loose-list.md': {
-    defect: 'D3 — blank lines between list items are not preserved',
-    // A loose list re-serializes tight. Renders the same; the author's source
-    // spacing is still rewritten under them.
-    current: '- one\n- two\n- three'
-  },
+  // Empty, and that is the point of the mechanism rather than a claim of
+  // perfection. Four entries lived here and each left by being fixed:
+  //
+  //   D1 — a code span's `<name>` written back as `&lt;name&gt;`
+  //   D2 — bold mishandled around a code span (and dropped outright when it
+  //        wrapped only one)
+  //   D5 — a bold link re-nested to [**x**](url)
+  //   D4 — a tagged data block's YAML rewritten as JSON
+  //   D3 — a loose list re-serialized tight
+  //
+  // D2 and D5 turned out to be one bug (the serializer ignoring `node.marks`
+  // order); D1, D3 and D4 were all the same shape as each other — the reader
+  // dropping something the writer then had to guess at.
+  //
+  // Add an entry when you find a defect you are not fixing today, with the
+  // wrong output it currently produces. Fixing it will break the entry, which
+  // is what forces the removal: this list can only shrink.
 }
 
 const fixtures = readdirSync(FIXTURE_DIR).filter(f => f.endsWith('.md')).sort()
@@ -151,4 +162,44 @@ describe('structural fixed point holds for every fixture', () => {
       expect(twice).toBe(once)
     })
   }
+})
+
+describe('list looseness', () => {
+  const rt = md => proseMirrorToMarkdown(markdownToProseMirror(md)).trim()
+
+  test('a tight list stays tight', () => {
+    expect(rt('- one\n- two')).toBe('- one\n- two')
+  })
+
+  test('a loose list keeps its blank lines', () => {
+    expect(rt('- one\n\n- two')).toBe('- one\n\n- two')
+  })
+
+  test('looseness applies inside an item too, not just between items', () => {
+    const source = '- parent\n\n  - child\n  - sibling\n\n- next'
+    expect(rt(source)).toBe(source)
+  })
+
+  test('ordered lists carry looseness alongside start', () => {
+    expect(rt('1. a\n\n2. b')).toBe('1. a\n\n2. b')
+  })
+
+  test('a nested list is loose independently of its parent', () => {
+    expect(rt('- parent\n  - child\n  - sibling\n- next')).toBe('- parent\n  - child\n  - sibling\n- next')
+  })
+
+  test('a list node with no loose flag serializes tight', () => {
+    // Documents written before the reader recorded looseness.
+    const doc = {
+      type: 'doc',
+      content: [{
+        type: 'bulletList',
+        content: ['one', 'two'].map(t => ({
+          type: 'listItem',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }]
+        }))
+      }]
+    }
+    expect(proseMirrorToMarkdown(doc).trim()).toBe('- one\n- two')
+  })
 })
