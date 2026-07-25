@@ -4,6 +4,7 @@
  * Each function takes a ProseMirror node and returns a markdown string.
  */
 
+import yaml from 'js-yaml'
 import { serializeInlineContent, serializeBlockImage, serializeInsetRef } from './marks.js'
 
 // inset_ref serialization is shared with the inline path; it lives in
@@ -78,13 +79,38 @@ export function serializeMathDisplay(node) {
 
 /**
  * Serialize a data block node.
- * @param {Object} node - Data block node with attrs.tag and attrs.data
+ *
+ * Emits the serialization the author wrote, which `attrs.language` records.
+ * This used to hardcode JSON, so a ```yaml:nav block came back as ```json:nav
+ * — same data, rewritten source, on every editor sync.
+ *
+ * **YAML is the fallback when `language` is absent**, not JSON. A node without
+ * it predates the reader recording it, and YAML is both the form the docs
+ * teach and the friendlier one to leave in someone's file; JSON is still
+ * emitted whenever it is what the author actually chose.
+ *
+ * @param {Object} node - Data block node with attrs.tag, attrs.data, attrs.language
  * @returns {string} Tagged fenced code block with serialized data
  */
 export function serializeDataBlock(node) {
-  const { tag, data } = node.attrs || {}
-  const serialized = JSON.stringify(data, null, 2)
-  return `\`\`\`json:${tag}\n${serialized}\n\`\`\``
+  const { tag, data, language } = node.attrs || {}
+
+  if ((language || '').toLowerCase() === 'json') {
+    return `\`\`\`json:${tag}\n${JSON.stringify(data, null, 2)}\n\`\`\``
+  }
+
+  // `yaml` and `yml` are both valid fences; echo back whichever was written.
+  const fence = language || 'yaml'
+  const serialized = yaml
+    .dump(data, {
+      lineWidth: -1, // Don't wrap long lines
+      quotingType: "'", // Use single quotes when quoting is needed
+      forceQuotes: false, // Only quote when necessary
+      noRefs: true, // Don't use YAML references
+    })
+    .trimEnd()
+
+  return `\`\`\`${fence}:${tag}\n${serialized}\n\`\`\``
 }
 
 /**

@@ -94,17 +94,6 @@ const KNOWN_DEFECTS = {
     // spacing is still rewritten under them.
     current: '- one\n- two\n- three'
   },
-  'defect-data-block.md': {
-    defect: 'D4 — a tagged data block loses its source serialization format',
-    // Found while building this harness. The reader
-    // parses ```yaml:nav into `{ type: 'dataBlock', attrs: { tag, data } }`,
-    // keeping the parsed value but not the format it was written in, so the
-    // writer has no way to know it was YAML and emits JSON. An author's YAML
-    // block silently becomes JSON on an editor sync. Same shape as D1: the
-    // information is destroyed by the reader, so the fix is an additive
-    // `attrs.format` in content-reader, not a guess in the writer.
-    current: '# Navigation\n\n```json:nav\n[\n  {\n    "label": "Docs",\n    "href": "/docs"\n  }\n]\n```'
-  }
 }
 
 const fixtures = readdirSync(FIXTURE_DIR).filter(f => f.endsWith('.md')).sort()

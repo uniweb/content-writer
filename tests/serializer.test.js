@@ -349,18 +349,28 @@ describe('Code Blocks', () => {
     expect(serializeDoc(doc)).toBe('```\nline 1\n\nline 2\n```')
   })
 
-  test('serializes data block', () => {
-    const doc = {
-      type: 'doc',
-      content: [
-        {
-          type: 'dataBlock',
-          attrs: { tag: 'nav-links', data: [{ label: 'Home' }] },
-        },
-      ],
-    }
-    const expected = '```json:nav-links\n[\n  {\n    "label": "Home"\n  }\n]\n```'
-    expect(serializeDoc(doc)).toBe(expected)
+  const dataBlockDoc = attrs => ({ type: 'doc', content: [{ type: 'dataBlock', attrs }] })
+
+  test('serializes a data block as JSON when that is what the author wrote', () => {
+    const doc = dataBlockDoc({ tag: 'nav-links', language: 'json', data: [{ label: 'Home' }] })
+    expect(serializeDoc(doc)).toBe('```json:nav-links\n[\n  {\n    "label": "Home"\n  }\n]\n```')
+  })
+
+  test('serializes a data block as YAML when that is what the author wrote', () => {
+    const doc = dataBlockDoc({ tag: 'nav-links', language: 'yaml', data: [{ label: 'Home' }] })
+    expect(serializeDoc(doc)).toBe('```yaml:nav-links\n- label: Home\n```')
+  })
+
+  test('echoes back the `yml` spelling rather than normalizing it', () => {
+    const doc = dataBlockDoc({ tag: 'cfg', language: 'yml', data: { key: 'value' } })
+    expect(serializeDoc(doc)).toBe('```yml:cfg\nkey: value\n```')
+  })
+
+  test('falls back to YAML when no language was recorded', () => {
+    // A node from before the reader recorded `language`. This used to emit
+    // JSON unconditionally, which rewrote every YAML block an author wrote.
+    const doc = dataBlockDoc({ tag: 'nav-links', data: [{ label: 'Home' }] })
+    expect(serializeDoc(doc)).toBe('```yaml:nav-links\n- label: Home\n```')
   })
 })
 
