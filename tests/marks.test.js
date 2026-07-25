@@ -44,7 +44,12 @@ describe('Inline Content Serialization', () => {
         marks: [{ type: 'italic' }, { type: 'bold' }],
       },
     ]
-    expect(serializeInlineContent(content)).toBe('**bold *****then italic***')
+    // Bold spans both nodes and italic sits inside it, so bold is emitted once
+    // around the pair. This used to assert `**bold *****then italic***` — two
+    // bold spans butted together — which does not survive a reparse: the run
+    // of five asterisks reads back as the literal text `**bold **` with no
+    // marks at all, destroying the bold it was meant to carry.
+    expect(serializeInlineContent(content)).toBe('**bold *then italic***')
   })
 
   test('serializes inline code', () => {

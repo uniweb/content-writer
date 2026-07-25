@@ -28,16 +28,6 @@ function reportUnknownMarks(content) {
 }
 
 /**
- * Check if a node has a specific mark type.
- * @param {Object} node - ProseMirror inline node
- * @param {string} type - Mark type
- * @returns {Object|undefined} The mark object if found
- */
-function findMark(node, type) {
-  return node.marks?.find(m => m.type === type)
-}
-
-/**
  * Check if two marks are the same (same type and same attrs for link/button/span).
  */
 function marksEqual(a, b) {
@@ -197,81 +187,111 @@ export function serializeInlineContent(content) {
   // No silent drops: flag any mark we can't represent before serializing.
   reportUnknownMarks(content)
 
-  // Pre-process: group nodes by wrapping marks (link, button, span)
-  const segments = groupByWrappingMarks(content)
-  return segments.map(seg => serializeSegment(seg)).join('')
+  return serializeRuns(content)
 }
 
 /**
- * Group consecutive nodes by shared wrapping marks (link, button, span).
- * Returns an array of segments, where each segment is either:
- * - { type: 'link'|'button'|'span', mark, nodes } — wrapped group
- * - { type: 'plain', nodes } — unwrapped nodes
+ * Serialize a run of inline nodes, honoring mark nesting.
+ *
+ * `node.marks` is **ordered, innermost first** — the reader records which mark
+ * the author wrapped around which. `**\`x\`**` gives `[code, bold]`;
+ * `[**x**](url)` gives `[bold, link]`; `**[x](url)**` gives `[link, bold]`.
+ * The semantic parser already reads that order (it renders
+ * `<strong><code>x</code></strong>`), and this serializer now does too.
+ *
+ * The algorithm is one rule applied recursively: take the OUTERMOST mark of
+ * the first node, absorb every following node that shares it, strip that one
+ * mark from the group, recurse, then wrap the result once.
+ *
+ * Absorbing the neighbours is what keeps a mark that spans several nodes from
+ * being re-emitted around each of them. `**Preview with \`pnpm dev\`.**` is
+ * three text nodes — `[bold]`, `[code, bold]`, `[bold]` — and wrapping each
+ * separately produced the invalid `**Preview with **\`pnpm dev\`**.**`.
+ *
+ * @param {Array} nodes - Inline nodes
+ * @returns {string} Markdown string
  */
-function groupByWrappingMarks(content) {
-  const segments = []
+function serializeRuns(nodes) {
+  const out = []
   let i = 0
 
-  while (i < content.length) {
-    const node = content[i]
+  while (i < nodes.length) {
+    const node = nodes[i]
+    const outer = node.type === 'text' ? outermostMark(node) : null
 
-    // Check for wrapping marks: link, button, span
-    const linkMark = findMark(node, 'link')
-    const buttonMark = findMark(node, 'button')
-    const spanMark = findMark(node, 'span')
-    const wrappingMark = buttonMark || linkMark || spanMark
-
-    if (wrappingMark && node.type === 'text') {
-      // Collect consecutive nodes with the same wrapping mark
-      const group = [node]
-      let j = i + 1
-      while (j < content.length && content[j].type === 'text') {
-        const nextMark = findMark(content[j], wrappingMark.type)
-        if (nextMark && marksEqual(nextMark, wrappingMark)) {
-          group.push(content[j])
-          j++
-        } else {
-          break
-        }
-      }
-      segments.push({ type: wrappingMark.type, mark: wrappingMark, nodes: group })
-      i = j
-    } else {
-      // Plain node (no wrapping mark, or an image node)
-      segments.push({ type: 'plain', nodes: [node] })
+    if (!outer) {
+      out.push(serializePlainNode(node))
       i++
+      continue
     }
+
+    // Absorb the consecutive text nodes wrapped by this same mark.
+    const group = []
+    let j = i
+    while (j < nodes.length && nodes[j].type === 'text') {
+      const candidate = outermostMark(nodes[j])
+      if (!candidate || !marksEqual(candidate, outer)) break
+      group.push(withoutOutermostMark(nodes[j]))
+      j++
+    }
+
+    out.push(applyMark(serializeRuns(group), outer))
+    i = j
   }
 
-  return segments
+  return out.join('')
 }
 
 /**
- * Serialize a segment (group of nodes with a common wrapping mark, or plain nodes).
+ * The mark an author wrapped outermost — the last entry, since marks are
+ * ordered innermost first.
+ *
+ * @param {Object} node
+ * @returns {Object|null}
  */
-function serializeSegment(segment) {
-  if (segment.type === 'plain') {
-    return segment.nodes.map(n => serializePlainNode(n)).join('')
-  }
+function outermostMark(node) {
+  const marks = node.marks || []
+  return marks.length ? marks[marks.length - 1] : null
+}
 
-  // Wrapped segment: serialize inner content (with the wrapping mark stripped)
-  const innerText = segment.nodes.map(node => {
-    // Strip the wrapping mark from this node's marks for inner serialization
-    const innerMarks = (node.marks || []).filter(m => !marksEqual(m, segment.mark))
-    return serializeTextWithMarks(node.text, innerMarks)
-  }).join('')
+/**
+ * The same node with its outermost mark peeled off.
+ * @param {Object} node
+ * @returns {Object}
+ */
+function withoutOutermostMark(node) {
+  return { ...node, marks: (node.marks || []).slice(0, -1) }
+}
 
-  if (segment.type === 'link') {
-    return `[${innerText}]${serializeLinkSuffix(segment.mark)}`
+/**
+ * Wrap already-serialized inner markdown in one mark.
+ *
+ * A mark with no markdown form leaves the text alone — the no-silent-drop
+ * guard has already reported it.
+ *
+ * @param {string} inner - Serialized inner content
+ * @param {Object} mark
+ * @returns {string}
+ */
+function applyMark(inner, mark) {
+  switch (mark.type) {
+    case 'code':
+      // Leaving HTML-land: a code span is the one place the reader leaves
+      // `&lt;`/`&gt;` escaped (see entities.js).
+      return `\`${decodeMarkupEntities(inner)}\``
+    case 'bold':
+      return `**${inner}**`
+    case 'italic':
+      return `*${inner}*`
+    case 'link':
+      return `[${inner}]${serializeLinkSuffix(mark)}`
+    case 'button':
+      return `[${inner}]${serializeButtonSuffix(mark)}`
+    case 'span':
+      return `[${inner}]${serializeSpanSuffix(mark)}`
+    default:
+      return inner
   }
-  if (segment.type === 'button') {
-    return `[${innerText}]${serializeButtonSuffix(segment.mark)}`
-  }
-  if (segment.type === 'span') {
-    return `[${innerText}]${serializeSpanSuffix(segment.mark)}`
-  }
-
-  return innerText
 }
 
 /**
@@ -305,33 +325,12 @@ function serializePlainNode(node) {
 }
 
 /**
- * Serialize text with formatting marks (bold, italic, code).
+ * Serialize one text node's own marks, innermost first.
  *
- * A code span is the one place `content-reader` leaves `&lt;`/`&gt;` escaped
- * (see `entities.js`), so it is the one place serializing has to undo them —
- * otherwise an author who wrote `` `<name>` `` gets `` `&lt;name&gt;` ``
- * written back into their own source file.
+ * Only reached for a lone node — `serializeRuns` handles anything that shares
+ * a mark with its neighbours.
  */
 function serializeTextWithMarks(text, marks) {
   if (!marks || marks.length === 0) return text
-
-  const hasCode = marks.some(m => m.type === 'code')
-  if (hasCode) {
-    return `\`${decodeMarkupEntities(text)}\``
-  }
-
-  const hasBold = marks.some(m => m.type === 'bold')
-  const hasItalic = marks.some(m => m.type === 'italic')
-
-  if (hasBold && hasItalic) {
-    return `***${text}***`
-  }
-  if (hasBold) {
-    return `**${text}**`
-  }
-  if (hasItalic) {
-    return `*${text}*`
-  }
-
-  return text
+  return marks.reduce((inner, mark) => applyMark(inner, mark), text)
 }

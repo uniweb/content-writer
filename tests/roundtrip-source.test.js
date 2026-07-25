@@ -82,34 +82,12 @@ const CANONICAL_FORMS = {
  * then has to come out, so this list can only shrink.
  */
 const KNOWN_DEFECTS = {
-  'defect-bold-code.md': {
-    defect: 'D2 — the serializer ignores mark nesting order',
-    // Root cause, and it is ONE bug with several faces: `node.marks` is an
-    // ORDERED array — innermost mark first — and the serializer ignores that
-    // order in favour of a fixed precedence. `serializeTextWithMarks` returns
-    // early on `code` and never consults bold/italic; `groupByWrappingMarks`
-    // treats link/button/span as the outer wrapper wherever it sits.
-    //
-    // The order is genuinely recorded, so this is fixable, not a data-model
-    // limit: `**\`x\`**` parses to marks=[code,bold] and `\`x\`` to
-    // marks=[code]. The semantic parser already reads the order correctly and
-    // renders `<strong><code>x</code></strong>` — proof the information is
-    // both present and usable. Only this serializer discards it.
-    //
-    // Faces of the same bug: bold spanning text+code emits the invalid
-    // `**Preview with **`; bold wrapping ONLY a code span is dropped
-    // outright (content loss); and `**[x](url)**` re-nests to
-    // `[**x**](url)` (see defect-bold-link.md).
-    current: '- **Preview with **`pnpm dev`**.**\n\nUse `npm install` first.'
-  },
-  'defect-bold-link.md': {
-    defect: 'D5 — a bold link is re-nested to [**text**](url) regardless of source order',
-    // Same root cause as D2. `**[x](url)**` parses to marks=[link,bold] and
-    // `[**x**](url)` to marks=[bold,link] — DIFFERENT arrays, so the authored
-    // nesting is recorded. `groupByWrappingMarks` hoists the link outermost
-    // either way.
-    current: '- [**Predicates**](./predicates.md) — filtering with `where:` clauses'
-  },
+  // D2 and D5 were here — bold mishandled around a code span, and a bold link
+  // re-nested — until the serializer was taught to honor `node.marks` order
+  // (marks are ordered innermost-first, and the semantic parser already read
+  // them that way). Both fixtures now round-trip to their source, so they are
+  // asserted as such above rather than allowlisted here. This is the list
+  // doing its job: fixing a defect breaks its entry and forces the removal.
   'defect-loose-list.md': {
     defect: 'D3 — blank lines between list items are not preserved',
     // A loose list re-serializes tight. Renders the same; the author's source
