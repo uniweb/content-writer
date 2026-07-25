@@ -74,16 +74,6 @@ const CANONICAL_FORMS = {
     // ```math for multi-line. Both read back as the same node.
     current: '$$E = mc^2$$'
   },
-  'canonical-bold-link.md': {
-    reason: 'a bold link always serializes as [**text**](url), whatever the source order',
-    // `**[x](url)**` and `[**x**](url)` parse to the SAME document: marks on a
-    // ProseMirror text node are an unordered set, so which one the author
-    // wrote is not recorded anywhere. The writer picks one spelling, and no
-    // amount of care in the writer can recover the other — the information is
-    // gone by the time it gets there. Classified as canonical rather than a
-    // defect so nobody goes looking for a fix that cannot exist.
-    current: '- [**Predicates**](./predicates.md) — filtering with `where:` clauses'
-  }
 }
 
 /**
@@ -93,13 +83,32 @@ const CANONICAL_FORMS = {
  */
 const KNOWN_DEFECTS = {
   'defect-bold-code.md': {
-    defect: 'D2 — bold is mishandled around an inline code span',
-    // Two distinct failures. First: bold spanning text and code splits into
-    // three runs, emitting `**Preview with **` — invalid markdown. Second,
-    // and worse: when bold wraps ONLY a code span, the
-    // mark is dropped outright (`serializeTextWithMarks` returns early on
-    // `code` and never consults bold/italic), so styling is silently lost.
+    defect: 'D2 — the serializer ignores mark nesting order',
+    // Root cause, and it is ONE bug with several faces: `node.marks` is an
+    // ORDERED array — innermost mark first — and the serializer ignores that
+    // order in favour of a fixed precedence. `serializeTextWithMarks` returns
+    // early on `code` and never consults bold/italic; `groupByWrappingMarks`
+    // treats link/button/span as the outer wrapper wherever it sits.
+    //
+    // The order is genuinely recorded, so this is fixable, not a data-model
+    // limit: `**\`x\`**` parses to marks=[code,bold] and `\`x\`` to
+    // marks=[code]. The semantic parser already reads the order correctly and
+    // renders `<strong><code>x</code></strong>` — proof the information is
+    // both present and usable. Only this serializer discards it.
+    //
+    // Faces of the same bug: bold spanning text+code emits the invalid
+    // `**Preview with **`; bold wrapping ONLY a code span is dropped
+    // outright (content loss); and `**[x](url)**` re-nests to
+    // `[**x**](url)` (see defect-bold-link.md).
     current: '- **Preview with **`pnpm dev`**.**\n\nUse `npm install` first.'
+  },
+  'defect-bold-link.md': {
+    defect: 'D5 — a bold link is re-nested to [**text**](url) regardless of source order',
+    // Same root cause as D2. `**[x](url)**` parses to marks=[link,bold] and
+    // `[**x**](url)` to marks=[bold,link] — DIFFERENT arrays, so the authored
+    // nesting is recorded. `groupByWrappingMarks` hoists the link outermost
+    // either way.
+    current: '- [**Predicates**](./predicates.md) — filtering with `where:` clauses'
   },
   'defect-loose-list.md': {
     defect: 'D3 — blank lines between list items are not preserved',
