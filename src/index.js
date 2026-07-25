@@ -8,7 +8,8 @@
 export { serializeDoc as proseMirrorToMarkdown } from './serializer.js'
 export { serializeInlineContent } from './marks.js'
 export { serializeFrontmatter } from './frontmatter.js'
-export { docToPlainText } from './plain-text.js'
+export { docToPlainText, docSummaryText } from './plain-text.js'
+export { decodeMarkupEntities, decodeTextEntities } from './entities.js'
 export { normalizeDialect } from './normalize.js'
 export { setDiagnosticsReporter, resetDiagnostics } from './diagnostics.js'
 

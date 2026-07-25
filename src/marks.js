@@ -5,6 +5,7 @@
  */
 
 import { serializeAttributes } from './attributes.js'
+import { decodeMarkupEntities } from './entities.js'
 import { warnUnmappedMark, warnUnmappedNode } from './diagnostics.js'
 
 /**
@@ -305,13 +306,18 @@ function serializePlainNode(node) {
 
 /**
  * Serialize text with formatting marks (bold, italic, code).
+ *
+ * A code span is the one place `content-reader` leaves `&lt;`/`&gt;` escaped
+ * (see `entities.js`), so it is the one place serializing has to undo them —
+ * otherwise an author who wrote `` `<name>` `` gets `` `&lt;name&gt;` ``
+ * written back into their own source file.
  */
 function serializeTextWithMarks(text, marks) {
   if (!marks || marks.length === 0) return text
 
   const hasCode = marks.some(m => m.type === 'code')
   if (hasCode) {
-    return `\`${text}\``
+    return `\`${decodeMarkupEntities(text)}\``
   }
 
   const hasBold = marks.some(m => m.type === 'bold')
