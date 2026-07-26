@@ -278,7 +278,7 @@ function applyMark(inner, mark) {
     case 'code':
       // Leaving HTML-land: a code span is the one place the reader leaves
       // `&lt;`/`&gt;` escaped (see entities.js).
-      return `\`${decodeMarkupEntities(inner)}\``
+      return serializeCodeSpan(decodeMarkupEntities(inner))
     case 'bold':
       return `**${inner}**`
     case 'italic':
@@ -322,6 +322,34 @@ function serializePlainNode(node) {
     return ''
   }
   return serializeTextWithMarks(node.text, node.marks || [])
+}
+
+/**
+ * Wrap text in code-span backticks, picking a delimiter it can survive.
+ *
+ * A code span holding backticks needs a longer run to delimit it, and one
+ * that begins or ends with a backtick needs a padding space (the parser
+ * strips exactly one from each end). A single backtick emitted regardless
+ * mangles anything documenting markdown itself — `` ` ```math ` `` came back
+ * as ` ````math` `, which is a different, broken span.
+ *
+ * @param {string} text - Code span content
+ * @returns {string} The delimited span
+ */
+function serializeCodeSpan(text) {
+  const content = String(text)
+  const runs = (content.match(/`+/g) || []).map(run => run.length)
+
+  // The shortest run length not already present, so the delimiter is
+  // unambiguous — CommonMark matches on equal-length runs.
+  let width = 1
+  while (runs.includes(width)) width++
+  const fence = '`'.repeat(width)
+
+  // A leading or trailing backtick would fuse with the delimiter.
+  const pad = content.startsWith('`') || content.endsWith('`') ? ' ' : ''
+
+  return `${fence}${pad}${content}${pad}${fence}`
 }
 
 /**

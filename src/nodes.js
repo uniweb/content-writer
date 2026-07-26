@@ -50,7 +50,25 @@ export function serializeCodeBlock(node) {
   const lang = node.attrs?.language || ''
   const tag = node.attrs?.tag ? `:${node.attrs.tag}` : ''
   const text = node.content?.[0]?.text || ''
-  return `\`\`\`${lang}${tag}\n${text}\n\`\`\``
+  const fence = '`'.repeat(fenceWidthFor(text))
+  return `${fence}${lang}${tag}\n${text}\n${fence}`
+}
+
+/**
+ * How many backticks this content needs as a fence.
+ *
+ * A fence must be longer than the longest backtick run inside it, or the
+ * block ends early — which is why documentation that shows fenced markdown
+ * is itself fenced in four backticks. Emitting three unconditionally
+ * truncated those blocks and spilled their remainder into the page as prose.
+ *
+ * @param {string} text - The code block's content
+ * @returns {number} Fence length, never fewer than three
+ */
+function fenceWidthFor(text) {
+  const runs = String(text).match(/`+/g) || []
+  const longest = runs.reduce((max, run) => Math.max(max, run.length), 0)
+  return Math.max(3, longest + 1)
 }
 
 /**
@@ -273,7 +291,7 @@ export function serializeTable(node) {
 function serializeTableCell(cell) {
   if (!cell.content) return ''
   // Table cells contain paragraphs; serialize their inline content
-  return cell.content
+  const text = cell.content
     .map(child => {
       if (child.type === 'paragraph') {
         return serializeInlineContent(child.content)
@@ -281,6 +299,27 @@ function serializeTableCell(cell) {
       return ''
     })
     .join(' ')
+
+  return escapeTableCell(text)
+}
+
+/**
+ * Escape the one character a table cell cannot contain literally.
+ *
+ * A pipe inside a cell ends it, so markdown spells a literal one `\|` and the
+ * parser hands back the unescaped character. Writing that back out unescaped
+ * splits the cell and shifts every column after it — the table silently gains
+ * a column and stops lining up with its header.
+ *
+ * Only the pipe needs this: the cell's other content has already been through
+ * the inline serializers, and a row is a single line by construction.
+ *
+ * @param {string} text - Serialized inline content of one cell
+ * @returns {string}
+ */
+function escapeTableCell(text) {
+  // Leave an already-escaped pipe alone rather than doubling its backslash.
+  return text.replace(/\\?\|/g, '\\|')
 }
 
 // Lazy reference to serializeNode to handle circular dependency with blockquote
