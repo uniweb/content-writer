@@ -156,8 +156,12 @@ describe('no-silent-drop guard: unmappable nodes are reported, not lost', () => 
         })
       )
     )
-    expect(md).toBe('important') // text preserved, styling dropped
-    expect(warnings.some((m) => m.includes('highlight'))).toBe(true)
+    // `highlight` used to have no markdown form and was reported as an
+    // unmapped mark. It is now a named inline style — the editor stores a
+    // theme token rather than a colour — so it maps onto the span mark and
+    // nothing is dropped or reported.
+    expect(md).toBe('[important]{highlight}')
+    expect(warnings).toEqual([])
   })
 
   test('a known framework document produces no warnings', () => {
@@ -228,5 +232,47 @@ describe('no-silent-drop guard: unmappable nodes are reported, not lost', () => 
       doc(para({ type: 'text', text: 'wrapped\nparagraph' }))
     )
     expect(md.trim()).toBe('wrapped\nparagraph')
+  })
+})
+
+describe('editor named inline styles map onto the span mark', () => {
+  let warnings
+
+  beforeEach(() => {
+    warnings = []
+    resetDiagnostics()
+    setDiagnosticsReporter(m => warnings.push(m))
+  })
+
+  const styled = marks => proseMirrorToMarkdown(doc(para({ type: 'text', text: 'x', marks }))).trim()
+
+  test('a textStyle token becomes a named inline style', () => {
+    // The editor's picker offers a closed set of theme tokens, not colours —
+    // the attribute is only *named* `color`. So they round-trip through the
+    // span mark the framework already has, and nothing is lost.
+    expect(styled([{ type: 'textStyle', attrs: { color: 'accent' } }])).toBe('[x]{accent}')
+    expect(styled([{ type: 'textStyle', attrs: { color: 'muted' } }])).toBe('[x]{muted}')
+    expect(styled([{ type: 'textStyle', attrs: { color: 'callout' } }])).toBe('[x]{callout}')
+  })
+
+  test('highlight is effectively boolean and maps the same way', () => {
+    expect(styled([{ type: 'highlight' }])).toBe('[x]{highlight}')
+  })
+
+  test('the "Normal" option carries no styling', () => {
+    expect(styled([{ type: 'textStyle', attrs: { color: '' } }])).toBe('x')
+    expect(warnings).toEqual([])
+  })
+
+  test('a raw colour is NOT mapped — it is reported, not written into markdown', () => {
+    // Reachable today via a paste carrying inline style; the editor is gating
+    // its parseHTML. A hex in markdown would contradict the theming model and
+    // would not survive a change of brand, so it must not be invented here.
+    expect(styled([{ type: 'textStyle', attrs: { color: '#ff0000' } }])).toBe('x')
+    expect(warnings.some(m => m.includes('textStyle'))).toBe(true)
+  })
+
+  test('a mapped style round-trips back through the reader', () => {
+    expect(styled([{ type: 'textStyle', attrs: { color: 'accent' } }])).toBe('[x]{accent}')
   })
 })

@@ -206,10 +206,63 @@ function mapEditorNode(node) {
  * its children. Nodes without a mapping pass through unchanged so any
  * editor-dialect descendants are still caught.
  */
+/**
+ * The editor's named inline styles, and the framework spelling of each.
+ *
+ * These are theme tokens, not colours. The editor's picker offers exactly this
+ * closed set — the attribute is *named* `color` but holds a token, which its
+ * extension renders as `var(--<token>)`. So they map onto the `span` mark the
+ * framework already round-trips as `[text]{token}`, and nothing is lost.
+ *
+ * A value outside this set (a hex from a paste, until the editor gates its
+ * `parseHTML`) is deliberately NOT mapped: it falls through to the
+ * no-silent-drop guard rather than writing a raw colour into markdown, where
+ * it would contradict the theming model and not survive a change of brand.
+ */
+const NAMED_INLINE_STYLES = new Set(['accent', 'highlight', 'callout', 'muted'])
+
+/** A mark that carries nothing and should be removed rather than reported. */
+const DROP_MARK = Symbol('drop-mark')
+
+/**
+ * Map an editor-dialect mark to the framework dialect.
+ *
+ * @param {Object} mark
+ * @returns {Object|Symbol|null} a framework mark, `DROP_MARK` when the mark
+ *   carries no styling at all, or null when there is no mapping (the original
+ *   is kept and reported by the no-silent-drop guard)
+ */
+function mapEditorMark(mark) {
+  if (mark?.type === 'highlight') {
+    // Effectively boolean in the editor: its extension hardcodes the
+    // background and ignores the attribute.
+    return { type: 'span', attrs: { highlight: true } }
+  }
+
+  if (mark?.type === 'textStyle') {
+    const token = mark.attrs?.color
+    // The picker's "Normal" option. Nothing is being dropped, so reporting it
+    // would be noise in a guard whose value depends on staying quiet.
+    if (!token) return DROP_MARK
+    if (!NAMED_INLINE_STYLES.has(token)) return null // a colour, not a token
+    return { type: 'span', attrs: { [token]: true } }
+  }
+
+  return null
+}
+
 function normalizeNode(node) {
   if (!node || typeof node !== 'object') return node
 
-  const result = mapEditorNode(node) || node
+  let result = mapEditorNode(node) || node
+
+  if (Array.isArray(result.marks) && result.marks.length) {
+    // An unmapped mark is kept, so the no-silent-drop guard still reports it.
+    result = {
+      ...result,
+      marks: result.marks.map(m => mapEditorMark(m) || m).filter(m => m !== DROP_MARK),
+    }
+  }
 
   if (Array.isArray(result.content)) {
     return { ...result, content: result.content.map(normalizeNode) }
