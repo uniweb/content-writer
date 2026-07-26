@@ -192,6 +192,15 @@ function mapEditorNode(node) {
     case 'UniwebIcon':
     case 'Icon':
       return mapUniwebIcon(node)
+    case 'WarningBlock':
+    case 'details': {
+      const attrs = EDITOR_CONTAINERS[node.type](node)
+      return {
+        type: 'inset_block',
+        attrs,
+        content: node.type === 'details' ? detailsBody(node) : asBlocks(node.content),
+      }
+    }
     case 'emoji':
       // The node carries the character alongside a name; the character is the
       // whole markdown form. Guarded rather than assumed to be populated.
@@ -236,6 +245,68 @@ function mapEditorNode(node) {
  * it would contradict the theming model and not survive a change of brand.
  */
 const NAMED_INLINE_STYLES = new Set(['accent', 'highlight', 'callout', 'muted'])
+
+/**
+ * Editor container nodes → the framework's `inset_block`, as an explicit table.
+ *
+ * Deliberately not derived from the node name. The editor's node is
+ * `WarningBlock` while the component is `Alert`, and its `type` defaults to
+ * `info` rather than `warning` — a name-derived mapping drops exactly that row,
+ * which is how `mapUniwebIcon` came to lose every icon the editor produces. A
+ * missing entry here is a visible gap rather than a silent assumption.
+ */
+const EDITOR_CONTAINERS = {
+  WarningBlock: node => ({ component: 'Alert', type: node.attrs?.type || 'info' }),
+  details: () => ({ component: 'Details' }),
+}
+
+/** Inline node types, for deciding whether a container's body needs wrapping. */
+const INLINE_TYPES = new Set([
+  'text',
+  'hardBreak',
+  'image',
+  'math_inline',
+  'inset_ref',
+  'emoji',
+  'UniwebIcon',
+])
+
+/**
+ * A container body as block content.
+ *
+ * `WarningBlock` holds `text*` today and `block+` after the editor's widening,
+ * so both shapes arrive here. Inline content is wrapped in one paragraph;
+ * block content passes through.
+ *
+ * @param {Array} content
+ * @returns {Array}
+ */
+function asBlocks(content) {
+  if (!content?.length) return []
+  return content.every(node => INLINE_TYPES.has(node.type))
+    ? [{ type: 'paragraph', content }]
+    : content
+}
+
+/**
+ * Flatten the editor's `details` › `detailsSummary` + `detailsContent` into the
+ * container's body, summary first.
+ *
+ * The summary leads rather than riding on an attribute: `detailsSummary` can
+ * carry marks, and `summary="…"` would flatten emphasis and links.
+ *
+ * @param {Object} node
+ * @returns {Array}
+ */
+function detailsBody(node) {
+  const body = []
+  for (const child of node.content || []) {
+    if (child.type === 'detailsSummary') body.push(...asBlocks(child.content))
+    else if (child.type === 'detailsContent') body.push(...(child.content || []))
+    else body.push(child)
+  }
+  return body
+}
 
 /** A mark that carries nothing and should be removed rather than reported. */
 const DROP_MARK = Symbol('drop-mark')

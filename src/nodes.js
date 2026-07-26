@@ -6,6 +6,7 @@
 
 import yaml from 'js-yaml'
 import { serializeInlineContent, serializeBlockImage, serializeInsetRef } from './marks.js'
+import { serializeAttributes } from './attributes.js'
 
 // inset_ref serialization is shared with the inline path; it lives in
 // marks.js (alongside the other inline-attribute serializers) and is
@@ -93,6 +94,36 @@ export function serializeMathDisplay(node) {
   return latex.includes('\n')
     ? '```math\n' + latex + '\n```'
     : '$$' + latex + '$$'
+}
+
+/**
+ * Serialize a container node back to its fence.
+ *
+ * The inverse of content-reader's `@Component{params}` fence. The info string
+ * is the inset's own token, so a container is byte-for-byte the block form of
+ * an inset — same concept, two levels.
+ *
+ * The fence widens past any backtick run in the body, which is what lets a
+ * container hold a code sample: `fenceWidthFor` is the same computation the
+ * plain code-block path uses.
+ *
+ * @param {Object} node - inset_block node with attrs.component + params
+ * @returns {string} Fenced container
+ */
+export function serializeInsetBlock(node) {
+  const { component, ...params } = node.attrs || {}
+  if (!component) return ''
+
+  const { serializeNode } = await_serializer()
+  const body = (node.content || [])
+    .map(child => serializeNode(child))
+    .filter(Boolean)
+    .join('\n\n')
+
+  const fence = '`'.repeat(fenceWidthFor(body))
+  const attrStr = serializeAttributes(params)
+
+  return `${fence}@${component}${attrStr}\n${body}\n${fence}`
 }
 
 /**

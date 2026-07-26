@@ -242,3 +242,43 @@ describe('blocks inside list items', () => {
     expect(rt(source)).toBe(source)
   })
 })
+
+describe('containers — the block form of an inset', () => {
+  const rt = md => proseMirrorToMarkdown(markdownToProseMirror(md)).trim()
+
+  test('a container round-trips with its params', () => {
+    const source = '```@Alert{type=warning}\nBe careful.\n```'
+    expect(rt(source)).toBe(source)
+  })
+
+  test('a rich body survives — marks, links and blocks', () => {
+    const source = '```@Details\nA **summary**\n\nBody with [a link](/x).\n```'
+    expect(rt(source)).toBe(source)
+  })
+
+  test('the outer fence widens for a code block inside', () => {
+    // What makes a code sample in a callout possible, and why the body
+    // cannot be inline-only.
+    const source = '````@Alert{type=info}\nDo not:\n\n```js\nconst x = 1\n```\n````'
+    expect(rt(source)).toBe(source)
+  })
+
+  test('the editor container shapes normalize onto it', () => {
+    const text = t => ({ type: 'text', text: t })
+    const doc = node => proseMirrorToMarkdown({ type: 'doc', content: [node] }).trim()
+
+    // WarningBlock ↔ @Alert, defaulting to info, NOT warning — a name-derived
+    // mapping drops exactly this.
+    expect(doc({ type: 'WarningBlock', attrs: {}, content: [text('Careful.')] }))
+      .toBe('```@Alert{type=info}\nCareful.\n```')
+
+    // The summary is the first block and keeps its marks.
+    expect(doc({
+      type: 'details',
+      content: [
+        { type: 'detailsSummary', content: [text('Breaking '), { type: 'text', text: 'changes', marks: [{ type: 'bold' }] }] },
+        { type: 'detailsContent', content: [{ type: 'paragraph', content: [text('Body.')] }] },
+      ],
+    })).toBe('```@Details\nBreaking **changes**\n\nBody.\n```')
+  })
+})
