@@ -203,3 +203,42 @@ describe('list looseness', () => {
     expect(proseMirrorToMarkdown(doc).trim()).toBe('- one\n- two')
   })
 })
+
+describe('blocks inside list items', () => {
+  const rt = md => proseMirrorToMarkdown(markdownToProseMirror(md)).trim()
+  const itemChildren = md => markdownToProseMirror(md).content[0].content[0].content.map(n => n.type)
+
+  test('a fenced block under a bullet stays a code block', () => {
+    // It used to be lexed as inline and folded into the item's paragraph,
+    // losing the fence, the language and the line breaks — in the rendered
+    // page, not only on a round trip.
+    expect(itemChildren('- Use it:\n  ```jsx\n  const x = 1\n  ```')).toEqual(['paragraph', 'codeBlock'])
+  })
+
+  test('a blockquote under a bullet stays a blockquote', () => {
+    expect(itemChildren('- Item\n  > quoted')).toEqual(['paragraph', 'blockquote'])
+  })
+
+  test('a nested list is still a nested list', () => {
+    expect(itemChildren('- parent\n  - child')).toEqual(['paragraph', 'bulletList'])
+  })
+
+  test('multiple paragraphs in one item survive', () => {
+    expect(itemChildren('- First\n\n  Second\n\n- Next')).toEqual(['paragraph', 'paragraph'])
+  })
+
+  test('a code block round-trips inside a tight list', () => {
+    const source = '- Use the hook:\n  ```jsx\n  const x = 1\n  ```\n- Next item'
+    expect(rt(source)).toBe(source)
+  })
+
+  test('a code block round-trips inside a loose list', () => {
+    const source = '- Use the hook:\n\n  ```jsx\n  const x = 1\n  ```\n\n- Next item'
+    expect(rt(source)).toBe(source)
+  })
+
+  test('an ordered item indents its block to the wider bullet', () => {
+    const source = '1. Step one\n   ```sh\n   run it\n   ```\n2. Step two'
+    expect(rt(source)).toBe(source)
+  })
+})

@@ -217,27 +217,55 @@ function serializeListItem(node, bullet, indent, loose = false) {
   if (!node.content) return bullet
 
   const parts = []
+  const pad = ' '.repeat(bullet.length)
 
   for (let i = 0; i < node.content.length; i++) {
     const child = node.content[i]
 
-    if (i === 0 && child.type === 'paragraph') {
-      // First child paragraph is the item text
-      parts.push(bullet + serializeInlineContent(child.content))
-    } else if (child.type === 'bulletList') {
+    // Nested lists carry their own indentation.
+    if (child.type === 'bulletList') {
       parts.push(serializeBulletList(child, indent + 1))
-    } else if (child.type === 'orderedList') {
-      parts.push(serializeOrderedList(child, indent + 1))
-    } else if (child.type === 'paragraph') {
-      // Additional paragraphs in the same list item
-      const pad = ' '.repeat(bullet.length)
-      parts.push(pad + serializeInlineContent(child.content))
+      continue
     }
+    if (child.type === 'orderedList') {
+      parts.push(serializeOrderedList(child, indent + 1))
+      continue
+    }
+
+    // Anything else is an ordinary block. A paragraph is inline content; a
+    // code block, blockquote or table goes through the node serializer, the
+    // same way a blockquote's children do. Every one of those used to fall
+    // off the end of this loop and be dropped without a trace.
+    const text =
+      child.type === 'paragraph'
+        ? serializeInlineContent(child.content)
+        : await_serializer().serializeNode(child) || ''
+
+    parts.push(indentBlock(text, i === 0 ? bullet : pad, pad))
   }
 
   // In a loose list the item's own blocks are blank-line separated too — the
   // spacing is a property of the whole list, not just the gaps between items.
   return parts.join(loose ? '\n\n' : '\n')
+}
+
+/**
+ * Place a block's lines inside a list item.
+ *
+ * The first line carries the bullet (or aligns under it, for a block that is
+ * not the item's opening one); every later line aligns under the bullet so it
+ * stays part of the item instead of ending the list.
+ *
+ * @param {string} text - Serialized block, possibly multi-line
+ * @param {string} firstPrefix - Prefix for the first line
+ * @param {string} pad - Prefix for continuation lines
+ * @returns {string}
+ */
+function indentBlock(text, firstPrefix, pad) {
+  const [first = '', ...rest] = String(text).split('\n')
+  const head = firstPrefix + first
+  if (rest.length === 0) return head
+  return [head, ...rest.map(line => (line ? pad + line : ''))].join('\n')
 }
 
 /**
