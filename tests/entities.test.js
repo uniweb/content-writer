@@ -10,7 +10,7 @@
 
 import { markdownToProseMirror } from '@uniweb/content-reader'
 import { proseMirrorToMarkdown, docSummaryText, docToPlainText } from '../src/index.js'
-import { decodeMarkupEntities, decodeTextEntities } from '../src/entities.js'
+import { encodeMarkupEntities, decodeMarkupEntities, decodeTextEntities } from '../src/entities.js'
 
 const md = s => proseMirrorToMarkdown(markdownToProseMirror(s)).trim()
 
@@ -139,5 +139,37 @@ describe('docToPlainText also yields plain characters', () => {
     expect(docToPlainText(markdownToProseMirror('Use &lt;x&gt; and <br> here.'))).toBe(
       'Use <x> and  here.'
     )
+  })
+})
+
+describe('encodeMarkupEntities — the producer-side half', () => {
+  test('is the exact inverse of decodeMarkupEntities', () => {
+    const raw = '/data/<name>.json'
+    expect(encodeMarkupEntities(raw)).toBe('/data/&lt;name&gt;.json')
+    expect(decodeMarkupEntities(encodeMarkupEntities(raw))).toBe(raw)
+  })
+
+  test('does not touch &, so an authored entity is not double-encoded', () => {
+    expect(encodeMarkupEntities('a & b')).toBe('a & b')
+    expect(encodeMarkupEntities('&amp;')).toBe('&amp;')
+  })
+
+  test('round-trips what an author types in a code span', () => {
+    for (const raw of ['<div>', 'a < b && c > d', 'a & b', 'plain']) {
+      expect(decodeMarkupEntities(encodeMarkupEntities(raw))).toBe(raw)
+    }
+  })
+
+  test('the one input it does NOT round-trip: literal entity text', () => {
+    // `<div>` and `&lt;div&gt;` both store as `&lt;div&gt;`, so the pair
+    // cannot tell them apart and resolves to the decoded form.
+    //
+    // Accepted deliberately, because the loss happened earlier and elsewhere:
+    // a code span is rendered by injecting its text as HTML, so an author who
+    // typed `&lt;div&gt;` already sees `<div>` on the page. Decoding makes the
+    // file agree with the page rather than destroying something a reader could
+    // otherwise see. Escaping `&` as well would make the pair lossless, at the
+    // cost of changing what every existing code span stores.
+    expect(decodeMarkupEntities(encodeMarkupEntities('&lt;div&gt;'))).toBe('<div>')
   })
 })

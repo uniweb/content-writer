@@ -37,6 +37,30 @@ export function decodeMarkupEntities(text) {
 }
 
 /**
+ * Escape a code span's text for storage in a ProseMirror text node.
+ *
+ * The exact inverse of {@link decodeMarkupEntities}, and the other half of the
+ * invariant: a code span's content is rendered by injecting it as HTML, so a
+ * literal `<` has to be stored escaped or `<code><x></code>` has the browser
+ * swallow `<x>` and the span renders empty.
+ *
+ * Exported for **producers other than content-reader**. Any tool that writes a
+ * ProseMirror code span — an editor, a converter — needs this rule, and the
+ * rule living in prose rather than in code is what let two producers diverge.
+ * Import it instead of reimplementing it.
+ *
+ * Only `<` and `>`: every other character is safe inside an HTML text node,
+ * and escaping `&` here would double-encode an entity the author typed.
+ *
+ * @param {string} text - Raw code span content, as the author typed it
+ * @returns {string} Text safe to store in a PM code-marked node
+ */
+export function encodeMarkupEntities(text) {
+  if (!text) return text
+  return text.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/**
  * Resolve every entity to the character a reader would actually see.
  *
  * `&amp;` is decoded **last** so `&amp;lt;` yields `&lt;` rather than `<` —

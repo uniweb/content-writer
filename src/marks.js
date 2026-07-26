@@ -12,10 +12,10 @@ import { warnUnmappedMark, warnUnmappedNode } from './diagnostics.js'
  * Marks the markdown serializer can represent. Any other mark on an
  * inline node has its styling dropped (the text is still emitted) and is
  * reported by the no-silent-drop guard — e.g. editor-dialect `highlight`,
- * `textStyle` (colour), `strike`, `underline`, `uniqueID`, which need a
+ * `textStyle` (colour), `highlight`, `underline`, `uniqueID`, which need a
  * named-inline-style mapping decision.
  */
-const KNOWN_MARKS = new Set(['bold', 'italic', 'code', 'link', 'button', 'span'])
+const KNOWN_MARKS = new Set(['bold', 'italic', 'code', 'strike', 'link', 'button', 'span'])
 
 /** Report any inline mark we have no markdown form for (deduped per type). */
 function reportUnknownMarks(content) {
@@ -283,6 +283,10 @@ function applyMark(inner, mark) {
       return `**${inner}**`
     case 'italic':
       return `*${inner}*`
+    case 'strike':
+      // GFM. The editor's strike mark is author-reachable (input rule, paste
+      // rule, Mod-Shift-s) and had no markdown form, so it was dropped.
+      return `~~${inner}~~`
     case 'link':
       return `[${inner}]${serializeLinkSuffix(mark)}`
     case 'button':

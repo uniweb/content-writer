@@ -286,13 +286,17 @@ export function serializeTable(node) {
 
   const rows = node.content
   const headerRow = rows[0]
+  // A row with no cells is legal ProseMirror — `tableRow` is
+  // `(tableCell | tableHeader)*`, a star — and PM's toJSON omits `content`
+  // entirely for an empty node. Reading it unguarded threw.
+  const cellsOf = row => row?.content ?? []
   const bodyRows = rows.slice(1)
 
   // Serialize header cells
-  const headerCells = headerRow.content.map(cell => serializeTableCell(cell))
+  const headerCells = cellsOf(headerRow).map(cell => serializeTableCell(cell))
 
   // Build alignment row from header cell attrs
-  const alignments = headerRow.content.map(cell => {
+  const alignments = cellsOf(headerRow).map(cell => {
     const align = cell.attrs?.align
     if (align === 'left') return ':---'
     if (align === 'center') return ':---:'
@@ -302,7 +306,7 @@ export function serializeTable(node) {
 
   // Serialize body rows
   const bodyLines = bodyRows.map(row =>
-    '| ' + row.content.map(cell => serializeTableCell(cell)).join(' | ') + ' |'
+    '| ' + cellsOf(row).map(cell => serializeTableCell(cell)).join(' | ') + ' |'
   )
 
   const headerLine = '| ' + headerCells.join(' | ') + ' |'
