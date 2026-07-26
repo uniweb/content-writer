@@ -276,3 +276,49 @@ describe('editor named inline styles map onto the span mark', () => {
     expect(styled([{ type: 'textStyle', attrs: { color: 'accent' } }])).toBe('[x]{accent}')
   })
 })
+
+describe('editor icons and emoji', () => {
+  const inline = n => proseMirrorToMarkdown(doc(para(n))).trim()
+
+  test('the insert path stores a colon-joined family:id name', () => {
+    // What the editor actually emits: one `name`, no `library`. Requiring
+    // both attrs dropped every icon the editor produces.
+    expect(inline({ type: 'UniwebIcon', attrs: { name: 'lucide:star', svg: '<svg/>' } }))
+      .toBe('![](lucide:star)')
+  })
+
+  test('a short-code family uses the compact dash spelling', () => {
+    expect(inline({ type: 'UniwebIcon', attrs: { name: 'lu:star' } })).toBe('![](lu-star)')
+  })
+
+  test('the separate library+name form still maps', () => {
+    expect(inline({ type: 'UniwebIcon', attrs: { library: 'lu', name: 'star' } })).toBe('![](lu-star)')
+  })
+
+  test('the inlined svg blob is never written into markdown', () => {
+    const md = inline({ type: 'UniwebIcon', attrs: { name: 'lucide:star', svg: '<svg viewBox="0 0 24 24"/>' } })
+    expect(md).not.toContain('<svg')
+    expect(md).not.toContain('viewBox')
+  })
+
+  test('emoji carries its character', () => {
+    expect(inline({ type: 'emoji', attrs: { name: 'star', emoji: '⭐' } })).toBe('⭐')
+  })
+
+  test('an emoji with no character is not invented', () => {
+    expect(inline({ type: 'emoji', attrs: { name: 'star' } })).toBe('')
+  })
+})
+
+describe('icon spelling round-trips', () => {
+  test('a full family name keeps the colon form', () => {
+    // `![](lucide-star)` reads back as a plain image with src "lucide-star" —
+    // the dash spelling is short-codes-only, by design in the reader, so that
+    // the form stays unambiguous against a relative path.
+    for (const md of ['![](lucide:star)', '![](heroicons2:arrow-right)', '![](lu-star)']) {
+      const out = proseMirrorToMarkdown(markdownToProseMirror(md)).trim()
+      const attrs = markdownToProseMirror(out).content[0].content[0].attrs
+      expect(attrs.role).toBe('icon')
+    }
+  })
+})

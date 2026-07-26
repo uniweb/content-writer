@@ -107,14 +107,39 @@ export function serializeInsetRef(node) {
 }
 
 /**
+ * Icon library short codes, mirroring content-reader's `ICON_FAMILIES_SHORT`.
+ *
+ * The two spellings are not interchangeable on the way back in: the reader
+ * accepts `family:name` for ANY family but `family-name` only for a short
+ * code, deliberately, so a dash form stays unambiguous against an ordinary
+ * relative path. Emitting the dash form for a full family name produced
+ * `![](lucide-star)`, which reads back as a plain image with
+ * `src: "lucide-star"` — the icon destroyed, and stable in that state.
+ */
+const ICON_SHORT_CODES = new Set([
+  'lu', 'hi', 'hi2', 'pi', 'tb', 'fi', 'bs', 'md', 'ai',
+  'ri', 'si', 'io5', 'bi', 'vsc', 'wi', 'gi', 'fa', 'fa6',
+])
+
+/**
+ * Spell an icon reference so the reader parses it back as an icon.
+ * @param {string} library
+ * @param {string} name
+ * @returns {string}
+ */
+function iconRef(library, name) {
+  return ICON_SHORT_CODES.has(library) ? `${library}-${name}` : `${library}:${name}`
+}
+
+/**
  * Serialize an inline image node (icon within a paragraph).
  */
 function serializeInlineImage(node) {
   const { src, alt, caption, role, library, name, ...rest } = node.attrs || {}
 
-  // Icon with library+name → compact dash format
+  // Icon with library+name → dash for a short code, colon otherwise
   if (library && name) {
-    const iconSrc = `${library}-${name}`
+    const iconSrc = iconRef(library, name)
     const extraAttrs = { ...rest }
     // Remove icon-derived attrs from extra attrs
     delete extraAttrs.size
@@ -145,9 +170,9 @@ function serializeInlineImage(node) {
 export function serializeBlockImage(node) {
   const { src, alt, caption, role, library, name, ...rest } = node.attrs || {}
 
-  // Icon with library+name → compact dash format
+  // Icon with library+name → dash for a short code, colon otherwise
   if (library && name) {
-    const iconSrc = `${library}-${name}`
+    const iconSrc = iconRef(library, name)
     const extraAttrs = { ...rest }
     const attrStr = serializeAttributes(extraAttrs)
     const altPart = alt || ''

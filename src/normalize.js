@@ -155,9 +155,20 @@ function mapVideo(node) {
  */
 function mapUniwebIcon(node) {
   const attrs = node.attrs || {}
-  if (!attrs.library || !attrs.name) return null
 
-  const out = { role: 'icon', library: attrs.library, name: attrs.name }
+  // The insert path stores a single colon-joined `family:id` name (built from
+  // the icon CDN URL) and leaves `library` unset — so requiring both dropped
+  // every icon the editor actually produces. The separate-attr form is kept
+  // for content that already carries it.
+  let { library, name } = attrs
+  if (!library && typeof name === 'string' && name.includes(':')) {
+    const [family, ...rest] = name.split(':')
+    library = family
+    name = rest.join(':')
+  }
+  if (!library || !name) return null
+
+  const out = { role: 'icon', library, name }
   if (attrs.size) out.size = attrs.size
   if (attrs.color) out.color = attrs.color
   return { type: 'image', attrs: out }
@@ -179,7 +190,12 @@ function mapEditorNode(node) {
     case 'Video':
       return mapVideo(node)
     case 'UniwebIcon':
+    case 'Icon':
       return mapUniwebIcon(node)
+    case 'emoji':
+      // The node carries the character alongside a name; the character is the
+      // whole markdown form. Guarded rather than assumed to be populated.
+      return node.attrs?.emoji ? { type: 'text', text: node.attrs.emoji } : null
     // A standalone "\n" text node is NOT mapped here, deliberately.
     //
     // It used to be: content-reader once spelled a hard break that way, and
