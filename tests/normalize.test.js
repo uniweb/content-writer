@@ -196,7 +196,11 @@ describe('no-silent-drop guard: unmappable nodes are reported, not lost', () => 
     expect(warnings.some((m) => m.includes('FancyInlineWidget'))).toBe(true)
   })
 
-  test('a legacy standalone "\\n" text node self-heals to a hard break', () => {
+  test('a standalone "\\n" text node is a soft break, not a hard one', () => {
+    // content-reader emits a lone "\n" node for a SOFT break whenever the
+    // spans on both sides are marked. This used to be healed into a hard
+    // break, on the assumption it could only be the legacy spelling of one —
+    // which turned a wrapped line into a visible <br> one round trip later.
     const md = proseMirrorToMarkdown(
       doc(
         para(
@@ -206,8 +210,15 @@ describe('no-silent-drop guard: unmappable nodes are reported, not lost', () => 
         )
       )
     )
+    expect(md.trim()).toBe('line one\nline two')
+    expect(warnings).toEqual([])
+  })
+
+  test('a hard break is the hardBreak node, and still serializes as one', () => {
+    const md = proseMirrorToMarkdown(
+      doc(para({ type: 'text', text: 'line one' }, { type: 'hardBreak' }, { type: 'text', text: 'line two' }))
+    )
     expect(md.trim()).toBe('line one\\\nline two')
-    expect(warnings).toEqual([]) // healed, not reported as unmapped
   })
 
   test('a newline INSIDE a text node is a soft break and must not be converted', () => {

@@ -180,16 +180,21 @@ function mapEditorNode(node) {
       return mapVideo(node)
     case 'UniwebIcon':
       return mapUniwebIcon(node)
-    case 'text':
-      // Legacy hard break: content-reader used to emit a hard break as a
-      // standalone "\n" text node. Self-heal it to the node form so old
-      // documents converge on the next write.
-      //
-      // Deliberately narrow — ONLY a text node whose text is exactly "\n".
-      // A newline INSIDE a larger text node is a SOFT break (an ordinary
-      // wrapped paragraph), which is a space and must stay one; mapping those
-      // would inject a visible break into every wrapped paragraph.
-      return node.text === '\n' ? { type: 'hardBreak' } : null
+    // A standalone "\n" text node is NOT mapped here, deliberately.
+    //
+    // It used to be: content-reader once spelled a hard break that way, and
+    // this healed old documents onto the node form. The migration is done —
+    // content-reader has emitted a `hardBreak` node for both markdown
+    // spellings for some time, and no persisted document carries the legacy
+    // form (confirmed 2026-07-26).
+    //
+    // Keeping the rule past that point made it wrong. content-reader still
+    // produces a lone "\n" node, but for a SOFT break — a newline lands in
+    // its own node whenever the spans on both sides are marked, as in
+    // "`--heading` → `text-heading`" followed by another such line. Healing
+    // that turned an ordinary wrapped line into a visible break: the sync
+    // wrote a trailing "\", and the next read made it a real <br>, so the
+    // page reflowed one round trip after the edit.
     default:
       return null
   }
