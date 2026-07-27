@@ -39,6 +39,32 @@ function marksEqual(a, b) {
 }
 
 /**
+ * Would `inner` on its own re-parse to exactly this link?
+ *
+ * An author who writes a bare `https://example.com` gets a link mark whose
+ * href equals its text. Writing that back as `[https://example.com](https://example.com)`
+ * is content-identical but rewrites the author's file — and content-writer is
+ * what the editor uses to sync back to a developer's repository, so every save
+ * would churn every bare URL in it.
+ *
+ * Kept deliberately narrow. The bare form is only emitted when the mark
+ * carries nothing but an href, the text IS that href (or its address, for
+ * mailto), and the URL is one GFM autolinking will recapture with the same
+ * bounds: no whitespace or brackets, and no trailing punctuation, which
+ * autolink detection excludes from the match. Anything else keeps the
+ * explicit form, which is always correct if more verbose.
+ */
+const AUTOLINK_SAFE = /^[^\s<>()[\]]*[^\s<>()[\].,;:!?'"]$/
+
+function isBareAutolink(mark, inner) {
+  const { href, title, ...rest } = mark.attrs || {}
+  if (!href || title || Object.keys(rest).length > 0) return false
+  if (href === inner) return /^https?:\/\//.test(href) && AUTOLINK_SAFE.test(href)
+  if (href === `mailto:${inner}`) return AUTOLINK_SAFE.test(inner) && inner.includes('@')
+  return false
+}
+
+/**
  * Serialize a link mark's suffix: (href "title"){attrs}
  */
 function serializeLinkSuffix(mark) {
@@ -313,7 +339,7 @@ function applyMark(inner, mark) {
       // rule, Mod-Shift-s) and had no markdown form, so it was dropped.
       return `~~${inner}~~`
     case 'link':
-      return `[${inner}]${serializeLinkSuffix(mark)}`
+      return isBareAutolink(mark, inner) ? inner : `[${inner}]${serializeLinkSuffix(mark)}`
     case 'button':
       return `[${inner}]${serializeButtonSuffix(mark)}`
     case 'span':

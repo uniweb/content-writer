@@ -185,30 +185,35 @@ export function serializeBlockquote(node) {
 
 /**
  * Serialize a bullet list node.
+ *
+ * `pad` is the literal indentation this list sits at — the parent item's
+ * CONTENT COLUMN, not a level count. See serializeListItem for why.
+ *
  * @param {Object} node - Bullet list node with content (listItem nodes)
- * @param {number} [indent=0] - Indentation level
+ * @param {string} [pad=''] - Indentation prefix for every marker in this list
  * @returns {string} Markdown bullet list
  */
-export function serializeBulletList(node, indent = 0) {
+export function serializeBulletList(node, pad = '') {
   if (!node.content) return ''
-  const prefix = '  '.repeat(indent)
   return node.content
-    .map(item => serializeListItem(item, `${prefix}- `, indent, isLoose(node)))
+    .map(item => serializeListItem(item, `${pad}- `, isLoose(node)))
     .join(itemSeparator(node))
 }
 
 /**
  * Serialize an ordered list node.
+ *
+ * `pad` is the literal indentation this list sits at — see serializeBulletList.
+ *
  * @param {Object} node - Ordered list node with attrs.start and content
- * @param {number} [indent=0] - Indentation level
+ * @param {string} [pad=''] - Indentation prefix for every marker in this list
  * @returns {string} Markdown ordered list
  */
-export function serializeOrderedList(node, indent = 0) {
+export function serializeOrderedList(node, pad = '') {
   if (!node.content) return ''
   const start = node.attrs?.start || 1
-  const prefix = '  '.repeat(indent)
   return node.content
-    .map((item, i) => serializeListItem(item, `${prefix}${start + i}. `, indent, isLoose(node)))
+    .map((item, i) => serializeListItem(item, `${pad}${start + i}. `, isLoose(node)))
     .join(itemSeparator(node))
 }
 
@@ -238,13 +243,24 @@ function isLoose(node) {
 
 /**
  * Serialize a list item.
+ *
+ * A nested list is indented to this item's CONTENT COLUMN — `bullet.length` —
+ * not by a fixed two spaces per level. The marker's width varies (`- ` is 2,
+ * `9. ` is 3, `10. ` is 4), and a child indented less than the parent's
+ * content column is not a child at all: markdown reads it as ending the
+ * outer list. That is a source-corrupting bug, not a cosmetic one — a
+ * three-item ordered list with a nested bullet list came back as three
+ * separate top-level nodes.
+ *
+ * `pad` already computes that column for every other block in the item; nested
+ * lists now use the same value instead of their own count.
+ *
  * @param {Object} node - List item node with content
  * @param {string} bullet - The bullet prefix (e.g., "- " or "1. ")
- * @param {number} indent - Current indentation level
  * @param {boolean} [loose=false] - Whether the parent list is loose
  * @returns {string} Markdown list item
  */
-function serializeListItem(node, bullet, indent, loose = false) {
+function serializeListItem(node, bullet, loose = false) {
   if (!node.content) return bullet
 
   const parts = []
@@ -255,11 +271,11 @@ function serializeListItem(node, bullet, indent, loose = false) {
 
     // Nested lists carry their own indentation.
     if (child.type === 'bulletList') {
-      parts.push(serializeBulletList(child, indent + 1))
+      parts.push(serializeBulletList(child, pad))
       continue
     }
     if (child.type === 'orderedList') {
-      parts.push(serializeOrderedList(child, indent + 1))
+      parts.push(serializeOrderedList(child, pad))
       continue
     }
 
