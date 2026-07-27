@@ -27,12 +27,12 @@ describe('Attribute Serialization', () => {
     expect(serializeAttributes({ autoplay: true, muted: true })).toBe('{autoplay muted}')
   })
 
-  test('serializes class as dot notation', () => {
-    expect(serializeAttributes({ class: 'featured' })).toBe('{.featured}')
+  test('serializes a dotted NAME through the plain boolean branch', () => {
+    expect(serializeAttributes({ '.featured': true })).toBe('{.featured}')
   })
 
-  test('serializes multiple classes', () => {
-    expect(serializeAttributes({ class: 'featured rounded shadow' })).toBe('{.featured .rounded .shadow}')
+  test('serializes several dotted names', () => {
+    expect(serializeAttributes({ '.featured': true, '.rounded': true, '.shadow': true })).toBe('{.featured .rounded .shadow}')
   })
 
   test('serializes id as hash notation', () => {
@@ -41,7 +41,7 @@ describe('Attribute Serialization', () => {
 
   test('serializes mixed attributes', () => {
     const result = serializeAttributes({
-      class: 'featured',
+      '.featured': true,
       id: 'main-logo',
       width: 800,
       loading: 'lazy',
@@ -95,7 +95,7 @@ describe('Attribute Serialization', () => {
 
   test('serializes data attributes', () => {
     const result = serializeAttributes({
-      class: 'info',
+      '.info': true,
       'data-tooltip': 'More info',
     })
     expect(result).toBe('{.info data-tooltip="More info"}')

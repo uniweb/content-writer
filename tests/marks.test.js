@@ -202,7 +202,7 @@ describe('Inline Content Serialization', () => {
       {
         type: 'text',
         text: 'highlighted text',
-        marks: [{ type: 'span', attrs: { class: 'highlight' } }],
+        marks: [{ type: 'span', attrs: { '.highlight': true } }],
       },
       { type: 'text', text: ' in a sentence.' },
     ]
@@ -216,7 +216,7 @@ describe('Inline Content Serialization', () => {
       {
         type: 'text',
         text: 'important note',
-        marks: [{ type: 'span', attrs: { class: 'callout bold' } }],
+        marks: [{ type: 'span', attrs: { '.callout': true, '.bold': true } }],
       },
     ]
     expect(serializeInlineContent(content)).toBe('[important note]{.callout .bold}')
@@ -227,7 +227,7 @@ describe('Inline Content Serialization', () => {
       {
         type: 'text',
         text: 'key term',
-        marks: [{ type: 'span', attrs: { class: 'highlight', id: 'glossary-term' } }],
+        marks: [{ type: 'span', attrs: { '.highlight': true, id: 'glossary-term' } }],
       },
     ]
     expect(serializeInlineContent(content)).toBe('[key term]{.highlight #glossary-term}')
@@ -238,7 +238,7 @@ describe('Inline Content Serialization', () => {
       {
         type: 'text',
         text: 'tooltip text',
-        marks: [{ type: 'span', attrs: { class: 'info', 'data-tooltip': 'More info' } }],
+        marks: [{ type: 'span', attrs: { '.info': true, 'data-tooltip': 'More info' } }],
       },
     ]
     expect(serializeInlineContent(content)).toBe('[tooltip text]{.info data-tooltip="More info"}')
@@ -274,13 +274,13 @@ describe('Inline Content Serialization', () => {
       {
         type: 'text',
         text: 'first',
-        marks: [{ type: 'span', attrs: { class: 'highlight' } }],
+        marks: [{ type: 'span', attrs: { '.highlight': true } }],
       },
       { type: 'text', text: ' normal ' },
       {
         type: 'text',
         text: 'second',
-        marks: [{ type: 'span', attrs: { class: 'muted' } }],
+        marks: [{ type: 'span', attrs: { '.muted': true } }],
       },
     ]
     expect(serializeInlineContent(content)).toBe('[first]{.highlight} normal [second]{.muted}')
@@ -297,7 +297,7 @@ describe('Inline Content Serialization', () => {
       {
         type: 'text',
         text: 'span',
-        marks: [{ type: 'span', attrs: { class: 'highlight' } }],
+        marks: [{ type: 'span', attrs: { '.highlight': true } }],
       },
     ]
     expect(serializeInlineContent(content)).toBe(

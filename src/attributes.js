@@ -2,7 +2,13 @@
  * @fileoverview Serialize attributes to curly brace syntax
  *
  * Inverse of content-reader's attributes.js.
- * Produces syntax like: {role=hero width=1200 .class #id autoplay}
+ * Produces syntax like: {role=hero width=1200 #id autoplay}
+ *
+ * There is no CSS-class form. A `class` attribute serializes as an ordinary
+ * `class=value` pair, and a name that starts with a dot (`{".featured": true}`)
+ * serializes through the plain boolean branch as `{.featured}` — the dot is
+ * part of the name. Both directions need no special case, which is why this
+ * file no longer has one.
  */
 
 /**
@@ -22,13 +28,7 @@ export function serializeAttributes(attrs, skipKeys = []) {
     if (skipSet.has(key)) continue
     if (value === null || value === undefined) continue
 
-    if (key === 'class') {
-      // Split class string into individual .class entries
-      const classes = String(value).split(/\s+/).filter(Boolean)
-      for (const cls of classes) {
-        parts.push(`.${cls}`)
-      }
-    } else if (key === 'id') {
+    if (key === 'id') {
       parts.push(`#${value}`)
     } else if (value === true) {
       // Boolean attribute
