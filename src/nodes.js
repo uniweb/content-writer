@@ -317,9 +317,21 @@ function indentBlock(text, firstPrefix, pad) {
 
 /**
  * Serialize a divider node.
- * @returns {string} Markdown horizontal rule
+ *
+ * Emits the attribute spelling only when `type` carries a non-default value, so
+ * an ordinary rule stays `---` and no existing document is rewritten. `style` and
+ * `size` are deliberately NOT emitted: they are dead attrs (nothing reads them,
+ * no spelling sets them) and writing them would put vocabulary into every
+ * author's file that the framework is trying to retire.
+ *
+ * @param {Object} [node] - Divider node
+ * @returns {string} Markdown thematic break, with `{type=…}` when meaningful
  */
-export function serializeDivider() {
+export function serializeDivider(node) {
+  const type = node?.attrs?.type
+  if (typeof type === 'string' && type && type !== 'hr') {
+    return `---{type=${type}}`
+  }
   return '---'
 }
 
