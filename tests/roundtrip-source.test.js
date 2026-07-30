@@ -263,22 +263,34 @@ describe('containers — the block form of an inset', () => {
     expect(rt(source)).toBe(source)
   })
 
-  test('the editor container shapes normalize onto it', () => {
+  test('the editor containers normalize onto CONCEPT blocks, not insets', () => {
+    // Changed 2026-07-31. These used to become `@Alert` and `@Details` — an
+    // inset naming the component that renders it, which is a rendering
+    // decision living in content. A concept block names what the content IS
+    // and leaves rendering to the foundation.
     const text = t => ({ type: 'text', text: t })
     const doc = node => proseMirrorToMarkdown({ type: 'doc', content: [node] }).trim()
 
-    // WarningBlock ↔ @Alert, defaulting to info, NOT warning — a name-derived
-    // mapping drops exactly this.
+    // The editor's `type` becomes the TAG: a warning and a note are different
+    // kinds of thing, not one kind with a parameter. `info` is still the
+    // default, and still not `warning` — a name-derived mapping drops that.
     expect(doc({ type: 'WarningBlock', attrs: {}, content: [text('Careful.')] }))
-      .toBe('```@Alert{type=info}\nCareful.\n```')
+      .toBe('```md:info\nCareful.\n```')
+    expect(doc({ type: 'WarningBlock', attrs: { type: 'warning' }, content: [text('Careful.')] }))
+      .toBe('```md:warning\nCareful.\n```')
 
-    // The summary is the first block and keeps its marks.
+    // The summary becomes the leading HEADING, which is what makes this
+    // lossless: a concept block's items come from its headings, so the summary
+    // recovers as the item's title and the body as its paragraphs. As a
+    // paragraph — what this produced while the target was an inset — the two
+    // were indistinguishable coming back.
     expect(doc({
       type: 'details',
       content: [
         { type: 'detailsSummary', content: [text('Breaking '), { type: 'text', text: 'changes', marks: [{ type: 'bold' }] }] },
         { type: 'detailsContent', content: [{ type: 'paragraph', content: [text('Body.')] }] },
       ],
-    })).toBe('```@Details\nBreaking **changes**\n\nBody.\n```')
+    })).toBe('```md:details\n# Breaking **changes**\n\nBody.\n```')
   })
+
 })

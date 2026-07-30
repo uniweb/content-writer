@@ -193,14 +193,8 @@ function mapEditorNode(node) {
     case 'Icon':
       return mapUniwebIcon(node)
     case 'WarningBlock':
-    case 'details': {
-      const attrs = EDITOR_CONTAINERS[node.type](node)
-      return {
-        type: 'inset_block',
-        attrs,
-        content: node.type === 'details' ? detailsBody(node) : asBlocks(node.content),
-      }
-    }
+    case 'details':
+      return EDITOR_CONTAINERS[node.type](node)
     case 'emoji':
       // The node carries the character alongside a name; the character is the
       // whole markdown form. Guarded rather than assumed to be populated.
@@ -256,8 +250,25 @@ const NAMED_INLINE_STYLES = new Set(['accent', 'highlight', 'callout', 'muted'])
  * missing entry here is a visible gap rather than a silent assumption.
  */
 const EDITOR_CONTAINERS = {
-  WarningBlock: node => ({ component: 'Alert', type: node.attrs?.type || 'info' }),
-  details: () => ({ component: 'Details' }),
+  // A callout's SEVERITY is the concept, not a parameter on one — a warning and
+  // a note are different kinds of thing, so they are different tags. This is
+  // where the editor's `type` attribute goes.
+  WarningBlock: node => ({
+    type: 'concept_block',
+    attrs: { tag: node.attrs?.type || 'info' },
+    content: asBlocks(node.content),
+  }),
+  // The summary becomes the leading HEADING rather than a paragraph, which is
+  // what makes the mapping lossless in both directions: a concept block's items
+  // come from its headings, so the summary recovers as that item's title and
+  // the body as its paragraphs. Flattening it to a paragraph — what this did
+  // while the target was an inset — made the two indistinguishable on the way
+  // back.
+  details: node => ({
+    type: 'concept_block',
+    attrs: { tag: 'details' },
+    content: detailsBody(node),
+  }),
 }
 
 /** Inline node types, for deciding whether a container's body needs wrapping. */
@@ -289,11 +300,18 @@ function asBlocks(content) {
 }
 
 /**
- * Flatten the editor's `details` › `detailsSummary` + `detailsContent` into the
- * container's body, summary first.
+ * Flatten the editor's `details` › `detailsSummary` + `detailsContent` into a
+ * concept block's body, summary first — as a HEADING.
  *
- * The summary leads rather than riding on an attribute: `detailsSummary` can
- * carry marks, and `summary="…"` would flatten emphasis and links.
+ * The heading is what makes the mapping lossless. A concept block's items come
+ * from its headings, so a summary written as `# …` recovers as that item's
+ * title and the body as its paragraphs; written as a paragraph (which is what
+ * this did while the target was an inset) the two become indistinguishable on
+ * the way back, and a disclosure loses which half was its label.
+ *
+ * The summary stays inline content rather than moving to an attribute for the
+ * original reason: `detailsSummary` can carry marks, and `summary="…"` would
+ * flatten emphasis and links.
  *
  * @param {Object} node
  * @returns {Array}
@@ -301,8 +319,11 @@ function asBlocks(content) {
 function detailsBody(node) {
   const body = []
   for (const child of node.content || []) {
-    if (child.type === 'detailsSummary') body.push(...asBlocks(child.content))
-    else if (child.type === 'detailsContent') body.push(...(child.content || []))
+    if (child.type === 'detailsSummary') {
+      if (child.content?.length) {
+        body.push({ type: 'heading', attrs: { level: 1 }, content: child.content })
+      }
+    } else if (child.type === 'detailsContent') body.push(...(child.content || []))
     else body.push(child)
   }
   return body
