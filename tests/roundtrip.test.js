@@ -389,3 +389,71 @@ describe('Round-trip: Hard breaks', () => {
     expect(proseMirrorToMarkdown(parsed).trim()).toBe('wrapped\nparagraph')
   })
 })
+
+describe('Round-trip: Concept blocks', () => {
+  testRoundTrip(
+    '```md:faq\n# A question\nAn answer.\n\n# Another\nAlso answered.\n```',
+    'concept block with two pairs'
+  )
+
+  testRoundTrip(
+    '```md:warning\nBack up your database **first**.\n\n- Not reversible\n```',
+    'headingless concept block (a callout)'
+  )
+
+  testRoundTrip(
+    '```md:faq\n# Q\nAn answer with **bold** and a [link](/x).\n```',
+    'concept block whose body carries marks and links'
+  )
+
+  test('the BODY survives, not just the fence line', () => {
+    // A missing NODE_SERIALIZERS entry omits the whole node, so a test that
+    // only checks the fence and tag came back would pass on an empty block —
+    // and on a serializer that mangles the prose while the first line looks
+    // right. Assert the content.
+    const md = '```md:faq\n# What plans do you have?\nWe have three.\n```'
+    const out = proseMirrorToMarkdown(markdownToProseMirror(md))
+
+    expect(out).toContain('md:faq')
+    expect(out).toContain('# What plans do you have?')
+    expect(out).toContain('We have three.')
+  })
+
+  test('serialization is a FIXED POINT, which is the bar — not byte equality', () => {
+    // pass1 may differ from the author's original: the serializer normalizes
+    // spacing, so `# Q` immediately followed by its answer comes back with a
+    // blank line between them. Nothing is lost. Asserting byte-equality
+    // against the original would fail on content that is behaving correctly,
+    // and someone would "fix" the serializer to make it pass.
+    const original = '```md:faq\n# Q1\nA1\n# Q2\nA2\n```'
+    const pass1 = proseMirrorToMarkdown(markdownToProseMirror(original))
+    const pass2 = proseMirrorToMarkdown(markdownToProseMirror(pass1))
+
+    // Guard the guard: a fixed point on NOTHING is trivially true. Verified by
+    // canary — unregister the serializer and every other test in this block
+    // fails while `'' === ''` sails through. So pin the content first.
+    expect(pass1).toContain('# Q1')
+    expect(pass1).toContain('A2')
+    expect(pass2).toBe(pass1)
+  })
+
+  test('a code sample inside a concept block widens the outer fence', () => {
+    // Without fenceWidthFor the outer fence closes on the sample's own fence
+    // and the remainder spills into the page as prose. An FAQ answer that
+    // shows code is ordinary documentation, so this is the common case, not
+    // an edge one.
+    const md = '````md:faq\n# How do I start?\nRun this:\n\n```sh\nnpm i\n```\n````'
+    const out = proseMirrorToMarkdown(markdownToProseMirror(md))
+
+    expect(out.startsWith('````md:faq')).toBe(true)
+    expect(out).toContain('```sh')
+    expect(markdownToProseMirror(out)).toEqual(markdownToProseMirror(md))
+  })
+
+  test('an unmapped node would be dropped — so this one must stay mapped', () => {
+    // The failure mode this suite exists to catch: serializeNode omits a node
+    // it has no serializer for, taking the author's prose with it.
+    const doc = markdownToProseMirror('```md:faq\n# Q\nA\n```')
+    expect(proseMirrorToMarkdown(doc).trim()).not.toBe('')
+  })
+})

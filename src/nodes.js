@@ -127,6 +127,42 @@ export function serializeInsetBlock(node) {
 }
 
 /**
+ * Serialize a concept block back to its ```md:<tag> fence.
+ *
+ * The inverse of content-reader's concept-block branch. The body is real block
+ * content, so it serializes through the ordinary node path — a concept block is
+ * the section pipeline one level down, and its body is markdown at both ends.
+ *
+ * The fence widens past any backtick run in the body, for the same reason a
+ * container's does: an answer that shows a code sample is ordinary
+ * documentation, and a three-backtick fence would close on the sample's own
+ * fence and spill the remainder into the page as prose.
+ *
+ * A missing serializer here is not a cosmetic gap. `serializeNode` omits an
+ * unmapped node, so the whole block — the author's prose with it — would
+ * vanish from the file on the next write-back and from the per-page markdown
+ * projection. That is why the round-trip test asserts the BODY rather than
+ * just the fence line.
+ *
+ * @param {Object} node - concept_block node with attrs.tag + block content
+ * @returns {string} Fenced concept block
+ */
+export function serializeConceptBlock(node) {
+  const { tag } = node.attrs || {}
+  if (!tag) return ''
+
+  const { serializeNode } = await_serializer()
+  const body = (node.content || [])
+    .map(child => serializeNode(child))
+    .filter(Boolean)
+    .join('\n\n')
+
+  const fence = '`'.repeat(fenceWidthFor(body))
+
+  return `${fence}md:${tag}\n${body}\n${fence}`
+}
+
+/**
  * Serialize a data block node.
  *
  * Emits the serialization the author wrote, which `attrs.language` records.
