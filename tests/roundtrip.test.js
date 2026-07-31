@@ -457,3 +457,38 @@ describe('Round-trip: Concept blocks', () => {
     expect(proseMirrorToMarkdown(doc).trim()).not.toBe('')
   })
 })
+
+describe('Round-trip: GitHub alerts', () => {
+  testRoundTrip('> [!WARNING]\n> Back up your database first.', 'a GitHub alert')
+  testRoundTrip('> [!NOTE]\n> Something **worth** knowing, with a [link](/x).', 'marks inside one')
+  testRoundTrip('> [!TIP]\n> One thing.\n>\n> And another.', 'multiple blocks inside one')
+  testRoundTrip('> A plain quotation, **unchanged**.', 'an ordinary blockquote still round-trips')
+
+  test('the spelling is PRESERVED, not normalized', () => {
+    // The whole reason `syntax` exists. Normalizing would rewrite an author's
+    // file on the next editor sync — the defect dataBlock.language was added
+    // to stop, where a ```yaml block came back as ```json.
+    const gfm = '> [!WARNING]\n> Back up first.'
+    const fence = '```md:warning\nBack up first.\n```'
+
+    expect(proseMirrorToMarkdown(markdownToProseMirror(gfm)).trim()).toBe(gfm)
+    expect(proseMirrorToMarkdown(markdownToProseMirror(fence)).trim()).toBe(fence)
+  })
+
+  test('both spellings carry the same content', () => {
+    const gfm = markdownToProseMirror('> [!WARNING]\n> Back up **first**.')
+    const fence = markdownToProseMirror('```md:warning\nBack up **first**.\n```')
+    expect(gfm.content[0].content).toEqual(fence.content[0].content)
+    expect(gfm.content[0].attrs.tag).toBe(fence.content[0].attrs.tag)
+  })
+
+  test('is a FIXED POINT, asserted on the body', () => {
+    const original = '> [!CAUTION]\n> Mind the gap.'
+    const pass1 = proseMirrorToMarkdown(markdownToProseMirror(original))
+    const pass2 = proseMirrorToMarkdown(markdownToProseMirror(pass1))
+    // A dropped node is trivially a fixed point — pin the content first.
+    expect(pass1).toContain('Mind the gap.')
+    expect(pass1).toContain('[!CAUTION]')
+    expect(pass2).toBe(pass1)
+  })
+})

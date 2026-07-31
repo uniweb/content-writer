@@ -148,7 +148,7 @@ export function serializeInsetBlock(node) {
  * @returns {string} Fenced concept block
  */
 export function serializeConceptBlock(node) {
-  const { tag } = node.attrs || {}
+  const { tag, syntax } = node.attrs || {}
   if (!tag) return ''
 
   const { serializeNode } = await_serializer()
@@ -156,6 +156,22 @@ export function serializeConceptBlock(node) {
     .map(child => serializeNode(child))
     .filter(Boolean)
     .join('\n\n')
+
+  // Write back the spelling the author wrote. One node, two surfaces — a
+  // ```md:<tag> fence and GitHub's `> [!WARNING]` — and `syntax` is how the
+  // reader records which. Normalizing instead would rewrite someone's file on
+  // the next editor sync, which is exactly what `dataBlock.language` was added
+  // to stop when a ```yaml block came back as ```json.
+  if (syntax === 'gfm') {
+    // Every line of a blockquote carries its own marker, including the blank
+    // ones between blocks — a bare `>` rather than `> ` so no trailing space
+    // is written into the author's file.
+    const quoted = body
+      .split('\n')
+      .map(line => (line ? `> ${line}` : '>'))
+      .join('\n')
+    return `> [!${tag.toUpperCase()}]\n${quoted}`
+  }
 
   const fence = '`'.repeat(fenceWidthFor(body))
 
