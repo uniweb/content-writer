@@ -9,7 +9,7 @@
  *     link/button/code/span`), and
  *   - the **editor (TipTap) dialect** (`ImageBlock`, `Video`,
  *     `UniwebIcon`/`Icon`, `DividerBlock`, `card-group`, `FormBlock`,
- *     `WarningBlock`, `details`, colour/highlight marks …).
+ *     colour/highlight marks …).
  *
  * A ProseMirror document handed to content-writer may be in either dialect,
  * or a mix (file-origin content is framework-dialect; editor-authored
@@ -46,8 +46,15 @@
  *   - `FormBlock` — the editor node carries `activeSchemaId` + filled
  *     `data`; the framework `yaml:form` block carries a form *definition*.
  *     Different shapes; mapping needs a decision, not a guess.
- *   - `card-group`/`document-group`, `details`, `WarningBlock` — open
- *     mapping decisions (items vs insets; 🟥 gaps).
+ *   - `card-group`/`document-group` — open mapping decisions (🟥 gaps).
+ *
+ *   The editor's pre-concept containers — `WarningBlock`, `details`,
+ *   `detailsSummary`, `detailsContent` — used to be mapped here. The editor
+ *   now registers `concept_block` and its rows directly, so it never emits
+ *   them and the conversion was dead code; it was deleted when the
+ *   regenerated fixture in `_contracts/editor-vocabulary-diff.test.js`
+ *   stopped listing them. That fixture is the signal, and it is the only one
+ *   there is — no message announces it.
  *   - colour/highlight/strike/underline marks — need the named-inline-
  *     style convention decision.
  *
@@ -192,9 +199,6 @@ function mapEditorNode(node) {
     case 'UniwebIcon':
     case 'Icon':
       return mapUniwebIcon(node)
-    case 'WarningBlock':
-    case 'details':
-      return EDITOR_CONTAINERS[node.type](node)
     case 'emoji':
       // The node carries the character alongside a name; the character is the
       // whole markdown form. Guarded rather than assumed to be populated.
@@ -239,95 +243,6 @@ function mapEditorNode(node) {
  * it would contradict the theming model and not survive a change of brand.
  */
 const NAMED_INLINE_STYLES = new Set(['accent', 'highlight', 'callout', 'muted'])
-
-/**
- * Editor container nodes → the framework's `inset_block`, as an explicit table.
- *
- * Deliberately not derived from the node name. The editor's node is
- * `WarningBlock` while the component is `Alert`, and its `type` defaults to
- * `info` rather than `warning` — a name-derived mapping drops exactly that row,
- * which is how `mapUniwebIcon` came to lose every icon the editor produces. A
- * missing entry here is a visible gap rather than a silent assumption.
- */
-const EDITOR_CONTAINERS = {
-  // A callout's SEVERITY is the concept, not a parameter on one — a warning and
-  // a note are different kinds of thing, so they are different tags. This is
-  // where the editor's `type` attribute goes.
-  WarningBlock: node => ({
-    type: 'concept_block',
-    attrs: { tag: node.attrs?.type || 'info' },
-    content: asBlocks(node.content),
-  }),
-  // The summary becomes the leading HEADING rather than a paragraph, which is
-  // what makes the mapping lossless in both directions: a concept block's items
-  // come from its headings, so the summary recovers as that item's title and
-  // the body as its paragraphs. Flattening it to a paragraph — what this did
-  // while the target was an inset — made the two indistinguishable on the way
-  // back.
-  details: node => ({
-    type: 'concept_block',
-    attrs: { tag: 'details' },
-    content: detailsBody(node),
-  }),
-}
-
-/** Inline node types, for deciding whether a container's body needs wrapping. */
-const INLINE_TYPES = new Set([
-  'text',
-  'hardBreak',
-  'image',
-  'math_inline',
-  'inset_ref',
-  'emoji',
-  'UniwebIcon',
-])
-
-/**
- * A container body as block content.
- *
- * `WarningBlock` holds `text*` today and `block+` after the editor's widening,
- * so both shapes arrive here. Inline content is wrapped in one paragraph;
- * block content passes through.
- *
- * @param {Array} content
- * @returns {Array}
- */
-function asBlocks(content) {
-  if (!content?.length) return []
-  return content.every(node => INLINE_TYPES.has(node.type))
-    ? [{ type: 'paragraph', content }]
-    : content
-}
-
-/**
- * Flatten the editor's `details` › `detailsSummary` + `detailsContent` into a
- * concept block's body, summary first — as a HEADING.
- *
- * The heading is what makes the mapping lossless. A concept block's items come
- * from its headings, so a summary written as `# …` recovers as that item's
- * title and the body as its paragraphs; written as a paragraph (which is what
- * this did while the target was an inset) the two become indistinguishable on
- * the way back, and a disclosure loses which half was its label.
- *
- * The summary stays inline content rather than moving to an attribute for the
- * original reason: `detailsSummary` can carry marks, and `summary="…"` would
- * flatten emphasis and links.
- *
- * @param {Object} node
- * @returns {Array}
- */
-function detailsBody(node) {
-  const body = []
-  for (const child of node.content || []) {
-    if (child.type === 'detailsSummary') {
-      if (child.content?.length) {
-        body.push({ type: 'heading', attrs: { level: 1 }, content: child.content })
-      }
-    } else if (child.type === 'detailsContent') body.push(...(child.content || []))
-    else body.push(child)
-  }
-  return body
-}
 
 /** A mark that carries nothing and should be removed rather than reported. */
 const DROP_MARK = Symbol('drop-mark')
