@@ -21,6 +21,12 @@ export { serializeInsetRef }
 export function serializeHeading(node) {
   const prefix = '#'.repeat(node.attrs?.level || 1)
   const text = serializeInlineContent(node.content)
+  // A `#>` label line (pretitle). The hash count carries the authored
+  // spelling only — `#>` and `##>` mean the same thing — so emitting the
+  // stored level keeps the file byte-identical through a round-trip.
+  if (node.attrs?.role === 'pretitle') {
+    return `${prefix}> ${text}`
+  }
   return `${prefix} ${text}`
 }
 
