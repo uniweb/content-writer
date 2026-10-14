@@ -55,8 +55,12 @@
  *   regenerated fixture in `_contracts/editor-vocabulary-diff.test.js`
  *   stopped listing them. That fixture is the signal, and it is the only one
  *   there is — no message announces it.
- *   - colour/highlight/strike/underline marks — need the named-inline-
- *     style convention decision.
+ *   - a colour that is not a named style (`textStyle` with a raw value), and
+ *     `underline` — neither has a markdown form. `highlight` and the named
+ *     styles (`accent`, `highlight`, `callout`, `muted`) ARE mapped, onto the
+ *     `span` mark (`mapEditorMark`), and `strike` serializes as `~~text~~`.
+ *     ⛔ This line listed all of them as awaiting a decision until 2026-10-14,
+ *     long after the mapping shipped.
  *
  * Each unmapped construct reaches content-writer's serializer as-is and
  * is reported by the no-silent-drop guard (diagnostics.js) — never lost
