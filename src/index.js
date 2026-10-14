@@ -5,11 +5,10 @@
  * documents back to Markdown text.
  */
 
-export { serializeDoc as proseMirrorToMarkdown } from './serializer.js'
+export { serializeDoc as proseMirrorToMarkdown, unwritableNodes } from './serializer.js'
 export { serializeInlineContent } from './marks.js'
 export { serializeFrontmatter } from './frontmatter.js'
 export { docToPlainText, docSummaryText } from './plain-text.js'
-export { encodeMarkupEntities, decodeMarkupEntities, decodeTextEntities } from './entities.js'
 export { normalizeDialect } from './normalize.js'
 export { setDiagnosticsReporter, resetDiagnostics } from './diagnostics.js'
 

@@ -20,7 +20,8 @@ export { serializeInsetRef }
  */
 export function serializeHeading(node) {
   const prefix = '#'.repeat(node.attrs?.level || 1)
-  const text = serializeInlineContent(node.content)
+  // A heading is one line: a hard break inside it is written `<br/>`.
+  const text = serializeInlineContent(node.content, { lineBreak: '<br/>' })
   // A `#>` label line (pretitle). The hash count carries the authored
   // spelling only — `#>` and `##>` mean the same thing — so emitting the
   // stored level keeps the file byte-identical through a round-trip.
@@ -443,7 +444,8 @@ function serializeTableCell(cell) {
   const text = cell.content
     .map(child => {
       if (child.type === 'paragraph') {
-        return serializeInlineContent(child.content)
+        // A table row is one line: a hard break in a cell is written `<br/>`.
+        return serializeInlineContent(child.content, { lineBreak: '<br/>' })
       }
       return ''
     })

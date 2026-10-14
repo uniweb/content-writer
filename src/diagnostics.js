@@ -44,12 +44,40 @@ export function resetDiagnostics() {
   warnedMarks.clear()
 }
 
+/** Set while `collectOmittedNodes` runs: the node types the write leaves out. */
+let omitted = null
+
+/**
+ * Run a write and return the node types it left out, instead of reporting them.
+ * For a caller that must refuse rather than lose content — a pull, whose next
+ * push would delete whatever the file does not hold.
+ *
+ * @template T
+ * @param {() => T} run
+ * @returns {{ result: T, omitted: string[] }}
+ */
+export function collectOmittedNodes(run) {
+  const previous = omitted
+  omitted = new Set()
+  try {
+    const result = run()
+    return { result, omitted: [...omitted] }
+  } finally {
+    omitted = previous
+  }
+}
+
 /**
  * Report a ProseMirror node the serializer has no markdown form for.
  * @param {Object} node - The unmapped node ({ type, attrs, ... })
  */
 export function warnUnmappedNode(node) {
   const type = node?.type || 'unknown'
+  // A caller collecting what a write leaves out is told every time, not once per type.
+  if (omitted) {
+    omitted.add(type)
+    return
+  }
   if (warnedNodes.has(type)) return
   warnedNodes.add(type)
   report(

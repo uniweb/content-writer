@@ -5,8 +5,7 @@
     "type": "module",
     "main": "src/index.js",
     "exports": {
-        ".": "./src/index.js",
-        "./entities": "./src/entities.js"
+        ".": "./src/index.js"
     },
     "scripts": {
         "test": "vitest run",

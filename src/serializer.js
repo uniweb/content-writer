@@ -22,7 +22,7 @@ import {
   setSerializer,
 } from './nodes.js'
 import { normalizeDialect } from './normalize.js'
-import { warnUnmappedNode } from './diagnostics.js'
+import { warnUnmappedNode, collectOmittedNodes } from './diagnostics.js'
 
 const NODE_SERIALIZERS = {
   heading: serializeHeading,
@@ -61,6 +61,19 @@ export function serializeNode(node) {
 
 // Wire up the circular reference for blockquotes
 setSerializer(serializeNode)
+
+/**
+ * The node types a document holds that markdown cannot carry — what writing it
+ * to a file would leave out. A caller that writes files from stored content (a
+ * pull) asks first, so content is never dropped on its way to a file and then
+ * deleted by the push after it.
+ *
+ * @param {Object} doc - ProseMirror document
+ * @returns {string[]} the node types left out; empty when the whole doc fits
+ */
+export function unwritableNodes(doc) {
+  return collectOmittedNodes(() => serializeDoc(doc)).omitted
+}
 
 /**
  * Serialize a ProseMirror document to markdown.

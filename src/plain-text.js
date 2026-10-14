@@ -5,13 +5,11 @@
  * with newlines for structure. Useful for word counting, search
  * indexing, and generating summaries.
  *
- * "Plain" is meant literally: PM text nodes carry HTML (see `entities.js`),
- * so every text run is stripped of raw inline tags and its entities resolved
- * to the characters a reader would see. Without that, a summary can ship
- * `&lt;` or a stray `<span>` into whatever consumes it.
+ * A text node holds the characters a reader sees, so a run is already plain:
+ * it is joined as it is. ⛔ Until 2026-10-14 text nodes carried HTML, and each
+ * run had its inline tags stripped and its entities resolved here — which, on
+ * text that is text, would delete a `<div>` an author wrote about.
  */
-
-import { toPlainCharacters } from './entities.js'
 
 /**
  * Extract plain text from a ProseMirror document.
@@ -36,9 +34,8 @@ export function docToPlainText(doc) {
  * title as the summary. A page with no paragraph at the top level returns
  * `''` — callers are expected to have an authored fallback.
  *
- * The result is plain characters (tags stripped, entities resolved), so
- * truncating on a sentence boundary lands on a real sentence boundary
- * rather than somewhere inside a tag or an entity.
+ * The result is plain characters — what a text node holds — so truncating on
+ * a sentence boundary lands on a real sentence boundary.
  *
  * @param {Object} doc - ProseMirror document
  * @param {Object} [options]
@@ -132,12 +129,10 @@ function nodeToPlainText(node) {
  */
 function inlineToPlainText(content) {
   if (!content) return ''
-  return toPlainCharacters(
-    content
-      .filter(node => node.type === 'text')
-      .map(node => node.text || '')
-      .join('')
-  )
+  return content
+    .filter(node => node.type === 'text')
+    .map(node => node.text || '')
+    .join('')
 }
 
 /**

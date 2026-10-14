@@ -5,7 +5,6 @@
  */
 
 import { serializeAttributes } from './attributes.js'
-import { decodeMarkupEntities } from './entities.js'
 import { warnUnmappedMark, warnUnmappedNode } from './diagnostics.js'
 
 /**
@@ -232,13 +231,58 @@ export function serializeBlockImage(node) {
  * @param {Array} content - Array of text/image nodes with optional marks
  * @returns {string} Markdown string
  */
-export function serializeInlineContent(content) {
+export function serializeInlineContent(content, { lineBreak = '\\\n' } = {}) {
   if (!content || content.length === 0) return ''
 
   // No silent drops: flag any mark we can't represent before serializing.
   reportUnknownMarks(content)
 
-  return serializeRuns(content)
+  return serializeRuns(mergeAdjacentText(content), { lineBreak, literal: false })
+}
+
+/**
+ * Join neighbouring text nodes that carry the same marks, as ProseMirror itself
+ * would. The reader splits a run wherever markdown had an escape — `\<name>`
+ * arrives as `<` and `name>` — and the escaping below has to see the run whole,
+ * or a `<` that ends one node would go out bare before the tag-like text of the
+ * next.
+ *
+ * @param {Array} content
+ * @returns {Array}
+ */
+function mergeAdjacentText(content) {
+  const out = []
+  for (const node of content) {
+    const last = out[out.length - 1]
+    if (
+      node?.type === 'text' &&
+      last?.type === 'text' &&
+      JSON.stringify(last.marks || []) === JSON.stringify(node.marks || [])
+    ) {
+      out[out.length - 1] = { ...last, text: (last.text || '') + (node.text || '') }
+    } else {
+      out.push(node)
+    }
+  }
+  return out
+}
+
+/**
+ * Escape text so the reader decodes it back to the same characters.
+ *
+ * A text node holds the characters a reader sees, and content-reader decodes
+ * what markdown escapes — so the two characters it would otherwise read as
+ * something else are escaped here: a `<` that would open a tag or an autolink,
+ * and an `&` that would spell a character reference. `a < b` and `R&D` stay as
+ * they are. ⛔ Until 2026-10-14 a text node held HTML and was written verbatim.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+function escapeMarkdownText(text) {
+  return String(text)
+    .replace(/&(?=#[0-9]+;|#[xX][0-9a-fA-F]+;|[A-Za-z][A-Za-z0-9]*;)/g, '\\&')
+    .replace(/<(?=[A-Za-z/!?])/g, '\\<')
 }
 
 /**
@@ -262,7 +306,7 @@ export function serializeInlineContent(content) {
  * @param {Array} nodes - Inline nodes
  * @returns {string} Markdown string
  */
-function serializeRuns(nodes) {
+function serializeRuns(nodes, context) {
   const out = []
   let i = 0
 
@@ -271,7 +315,7 @@ function serializeRuns(nodes) {
     const outer = node.type === 'text' ? outermostMark(node) : null
 
     if (!outer) {
-      out.push(serializePlainNode(node))
+      out.push(serializePlainNode(node, context))
       i++
       continue
     }
@@ -286,7 +330,9 @@ function serializeRuns(nodes) {
       j++
     }
 
-    out.push(applyMark(serializeRuns(group), outer))
+    // A code span is literal: what it wraps is written as the characters it is.
+    const inner = serializeRuns(group, outer.type === 'code' ? { ...context, literal: true } : context)
+    out.push(applyMark(inner, outer))
     i = j
   }
 
@@ -327,9 +373,7 @@ function withoutOutermostMark(node) {
 function applyMark(inner, mark) {
   switch (mark.type) {
     case 'code':
-      // Leaving HTML-land: a code span is the one place the reader leaves
-      // `&lt;`/`&gt;` escaped (see entities.js).
-      return serializeCodeSpan(decodeMarkupEntities(inner))
+      return serializeCodeSpan(inner)
     case 'bold':
       return `**${inner}**`
     case 'italic':
@@ -352,7 +396,7 @@ function applyMark(inner, mark) {
 /**
  * Serialize a plain node (no wrapping mark).
  */
-function serializePlainNode(node) {
+function serializePlainNode(node, { lineBreak = '\\\n', literal = false } = {}) {
   if (node.type === 'image') {
     return serializeInlineImage(node)
   }
@@ -367,7 +411,9 @@ function serializePlainNode(node) {
     // Backslash rather than the two-trailing-spaces spelling: it survives
     // editors, formatters and pre-commit hooks that strip trailing whitespace,
     // and it is visible in a diff. Both spellings read back as a hard break.
-    return '\\\n'
+    // A heading or a table cell is one line, so there it is `<br/>` — the one
+    // tag the reader keeps, as the same hard break.
+    return lineBreak
   }
   if (node.type !== 'text') {
     // No silent drops: an inline node we have no markdown form for is
@@ -376,7 +422,9 @@ function serializePlainNode(node) {
     warnUnmappedNode(node)
     return ''
   }
-  return serializeTextWithMarks(node.text, node.marks || [])
+  const marks = node.marks || []
+  const keep = literal || marks.some((mark) => mark.type === 'code')
+  return serializeTextWithMarks(keep ? node.text : escapeMarkdownText(node.text), marks)
 }
 
 /**
