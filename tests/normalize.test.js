@@ -64,11 +64,44 @@ describe('normalizeDialect: editor blocks → framework markdown', () => {
           url: './hero.jpg',
           role: 'banner',
           alt: 'Hero',
-          direction: 'center', // editor layout state — intentionally dropped
+          direction: 'center', // the text column — no placement at all
           info: { identifier: '' },
         },
       }),
       '![Hero](./hero.jpg){role=banner}'
+    )
+  })
+
+  test.each([
+    ['left', 'left'],
+    ['right', 'right'],
+    ['wide', 'wide'],
+    ['fill', 'full'],
+  ])("ImageBlock's direction %s → {placement=%s}", (direction, placement) => {
+    expectMarkdown(
+      doc({ type: 'ImageBlock', attrs: { url: './harbour.jpg', alt: 'Harbour', direction } }),
+      `![Harbour](./harbour.jpg){placement=${placement}}`
+    )
+  })
+
+  test("ImageBlock's credit → {author=…}, the vocabulary's word for it", () => {
+    expectMarkdown(
+      doc({ type: 'ImageBlock', attrs: { url: './harbour.jpg', alt: 'Harbour', credit: 'Jane Doe' } }),
+      '![Harbour](./harbour.jpg){author="Jane Doe"}'
+    )
+  })
+
+  test('an ImageBlock that holds placement already keeps it — starter content builds one', () => {
+    expectMarkdown(
+      doc({ type: 'ImageBlock', attrs: { url: './harbour.jpg', alt: 'Harbour', placement: 'wide', direction: 'left' } }),
+      '![Harbour](./harbour.jpg){placement=wide}'
+    )
+  })
+
+  test("Video's direction fill → {placement=full}", () => {
+    expectMarkdown(
+      doc({ type: 'Video', attrs: { src: './tour.mp4', alt: 'Tour', direction: 'fill' } }),
+      '![Tour](./tour.mp4){role=video placement=full}'
     )
   })
 

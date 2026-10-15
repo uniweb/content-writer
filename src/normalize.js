@@ -32,6 +32,9 @@
  *                    present (`url`/`src`)
  *   - `UniwebIcon` → `image{role:'icon'}`   — only the `library`+`name`
  *                    form (`![](lib-name)`)
+ *   - on `ImageBlock` and `Video`, the editor's words for two of the
+ *     vocabulary's: `direction` → `placement` (`editorImageAttrs`) and
+ *     `credit` → `author`
  *
  * ## What it deliberately does NOT map (left for the serializer's
  * no-silent-drop guard to report — a tracked capability gap)
@@ -69,15 +72,16 @@
 
 /**
  * Editor-transient image attrs that have no on-disk markdown meaning and
- * are dropped by design (not data loss — they're editor UI/upload state
- * or layout hints the markdown form doesn't carry).
+ * are dropped by design (not data loss — they're editor UI/upload state, or
+ * presentation the vocabulary leaves out: `theme` and `filter` [Diego,
+ * 2026-10-14]). `url` and `src` are the address, written as the node's own.
+ * `direction` and `credit` are not here: they are the editor's words for the
+ * vocabulary's `placement` and `author`, and are mapped (`editorImageAttrs`).
  */
 const DROPPED_IMAGE_ATTRS = new Set([
   'url',
   'src',
   'info',
-  'direction',
-  'credit',
   'theme',
   'filter',
   'targetId',
@@ -125,6 +129,29 @@ function keptImageAttrs(attrs) {
 }
 
 /**
+ * The editor's `direction` — where an image or a video sits in the text — as
+ * the vocabulary's `placement`. `center` is the text column, which is no
+ * placement at all.
+ */
+const PLACEMENT_FOR_DIRECTION = { left: 'left', right: 'right', wide: 'wide', fill: 'full' }
+
+/**
+ * An editor image's or video's attrs in the vocabulary: the kept ones, plus
+ * `placement` from `direction` and `author` from `credit`. A node that already
+ * holds the vocabulary's word keeps it — starter content builds `ImageBlock`
+ * with `placement` (semantic-parser's `buildDoc`). ⛔ Until 2026-10-15 both
+ * editor words were dropped, so a pull lost where an image sat and who took it.
+ */
+function editorImageAttrs(attrs) {
+  const out = keptImageAttrs(attrs)
+  const placement = attrs.placement || PLACEMENT_FOR_DIRECTION[attrs.direction]
+  if (placement) out.placement = placement
+  const author = attrs.author || attrs.credit
+  if (author) out.author = author
+  return out
+}
+
+/**
  * Map an editor `ImageBlock` to a framework `image` node.
  * @returns {Object|null} framework image node, or null if unresolvable
  *   (identifier-only asset → leave for the guard to report).
@@ -134,7 +161,7 @@ function mapImageBlock(node) {
   const src = attrs.url || attrs.src
   if (!src) return null // identifier-only / not yet uploaded → can't resolve to a URL
 
-  const out = { src, ...keptImageAttrs(attrs) }
+  const out = { src, ...editorImageAttrs(attrs) }
   if (attrs.role && attrs.role !== 'image') out.role = attrs.role
   return { type: 'image', attrs: out }
 }
@@ -150,7 +177,7 @@ function mapVideo(node) {
   const src = attrs.src
   if (!src) return null // identifier-only → asset channel, not a URL
 
-  const out = { src, role: 'video', ...keptImageAttrs(attrs) }
+  const out = { src, role: 'video', ...editorImageAttrs(attrs) }
   // The editor carries the poster as a coverImg object; only a real URL
   // (not an identifier) has a markdown home.
   const poster = attrs.coverImg?.src

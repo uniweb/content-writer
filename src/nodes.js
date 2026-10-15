@@ -5,7 +5,7 @@
  */
 
 import yaml from 'js-yaml'
-import { serializeInlineContent, serializeBlockImage, serializeInsetRef } from './marks.js'
+import { serializeInlineContent, serializeBlockImage, serializeInsetRef, escapePlainText } from './marks.js'
 import { serializeAttributes } from './attributes.js'
 
 // inset_ref serialization is shared with the inline path; it lives in
@@ -22,13 +22,26 @@ export function serializeHeading(node) {
   const prefix = '#'.repeat(node.attrs?.level || 1)
   // A heading is one line: a hard break inside it is written `<br/>`.
   const text = serializeInlineContent(node.content, { lineBreak: '<br/>' })
+  // `{#id}` — the cross-reference label the reader takes from a heading's end
+  // (content-reader's `extractTrailingHeadingAttrs`). ⛔ Until 2026-10-15 it was
+  // left out, so a pull wrote `## Method {#sec-method}` back as `## Method` and
+  // every `[#sec-method]` lost its target.
+  const id = writableId(node.attrs?.id) ? ` {#${node.attrs.id}}` : ''
   // A `#>` label line (pretitle). The hash count carries the authored
   // spelling only — `#>` and `##>` mean the same thing — so emitting the
   // stored level keeps the file byte-identical through a round-trip.
   if (node.attrs?.role === 'pretitle') {
-    return `${prefix}> ${text}`
+    return `${prefix}> ${text}${id}`
   }
-  return `${prefix} ${text}`
+  return `${prefix} ${text}${id}`
+}
+
+/**
+ * An id the reader takes back as one — `{#…}`'s own grammar. Any other value
+ * would read back as text, so it is not written.
+ */
+function writableId(id) {
+  return typeof id === 'string' && /^[A-Za-z_][\w-]*$/.test(id)
 }
 
 /**
@@ -430,7 +443,55 @@ export function serializeTable(node) {
   const headerLine = '| ' + headerCells.join(' | ') + ' |'
   const alignLine = '| ' + alignments.join(' | ') + ' |'
 
-  return [headerLine, alignLine, ...bodyLines].join('\n')
+  const table = [headerLine, alignLine, ...bodyLines].join('\n')
+  const caption = serializeCaptionLine(node.attrs)
+  return caption ? `${table}\n\n${caption}` : table
+}
+
+/**
+ * A table's caption line — Pandoc's spelling, which the reader takes from the
+ * paragraph after a table (content-reader's `parser/tables.js`):
+ *
+ *     : Plans and prices {placement=wide #tbl-plans}
+ *
+ * Written when the table holds a caption, an id or a placement, after a blank
+ * line — a line directly under the rows would be read as another row. The
+ * caption is plain text, so it is escaped as such (`escapePlainText`), and a
+ * `{` that would open the trailing block is escaped too, so a caption ending
+ * in `{#x}` reads back as those characters.
+ *
+ * @param {Object} [attrs] - the table's attrs
+ * @returns {string} the line, or '' when there is nothing to write
+ */
+function serializeCaptionLine(attrs = {}) {
+  const parts = []
+  if (typeof attrs.placement === 'string' && /^[\w-]+$/.test(attrs.placement)) {
+    parts.push(`placement=${attrs.placement}`)
+  }
+  if (writableId(attrs.id)) parts.push(`#${attrs.id}`)
+
+  const words = typeof attrs.caption === 'string' ? attrs.caption.replace(/\s+/g, ' ').trim() : ''
+  const caption = words ? escapeTrailingBlock(escapePlainText(words)) : ''
+  if (!caption && parts.length === 0) return ''
+
+  const block = parts.length ? ` {${parts.join(' ')}}` : ''
+  return `:${caption ? ` ${caption}` : ''}${block}`
+}
+
+/**
+ * Escape the `{` of a caption's last `{…}` when the reader would take it as the
+ * caption line's block — one holding only `#id` and `placement=…` — so the
+ * caption keeps it as text. Every other `{…}` is text to the reader already.
+ */
+function escapeTrailingBlock(caption) {
+  const m = /(^|[^\\])\{([^{}]*)\}\s*$/.exec(caption)
+  if (!m) return caption
+  const parts = m[2].trim().split(/\s+/).filter(Boolean)
+  const isBlock =
+    parts.length > 0 && parts.every((part) => /^#[A-Za-z_][\w-]*$/.test(part) || /^placement=\S+$/.test(part))
+  if (!isBlock) return caption
+  const at = m.index + m[1].length
+  return `${caption.slice(0, at)}\\${caption.slice(at)}`
 }
 
 /**

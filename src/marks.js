@@ -286,6 +286,29 @@ function escapeMarkdownText(text) {
 }
 
 /**
+ * Escape text that is plain where it is read — a table's caption — so the
+ * reader's inline pass reads back these characters and no markup.
+ *
+ * A text node's own escaping (above) is enough in a paragraph, where `*` that
+ * the author typed was emphasis to begin with. A plain-text value never held
+ * any, so every character an inline lexer would take as markup is escaped: `\`
+ * itself, emphasis and strikethrough (`*`, `~`, `_` outside a word), code
+ * (`` ` ``), a link, a span or an image (`[`), and math (`$`). The reader decodes
+ * each `\x` back to `x`.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+export function escapePlainText(text) {
+  return escapeMarkdownText(
+    String(text)
+      .replace(/\\/g, '\\\\')
+      .replace(/[*`[~$]/g, (c) => `\\${c}`)
+      .replace(/(?<![A-Za-z0-9])_|_(?![A-Za-z0-9])/g, '\\_'),
+  )
+}
+
+/**
  * Serialize a run of inline nodes, honoring mark nesting.
  *
  * `node.marks` is **ordered, innermost first** — the reader records which mark
