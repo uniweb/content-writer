@@ -35,6 +35,7 @@
  *   - on `ImageBlock` and `Video`, the editor's words for two of the
  *     vocabulary's: `direction` → `placement` (`editorImageAttrs`) and
  *     `credit` → `author`
+ *   - on a `table`, the editor's `layout` → `placement` (`mapTableLayout`)
  *
  * ## What it deliberately does NOT map (left for the serializer's
  * no-silent-drop guard to report — a tracked capability gap)
@@ -131,16 +132,24 @@ function keptImageAttrs(attrs) {
 /**
  * The editor's `direction` — where an image or a video sits in the text — as
  * the vocabulary's `placement`. `center` is the text column, which is no
- * placement at all.
+ * placement at all, and so are `background` (a short strip the picture covers)
+ * and `small` (the picture kept short, centred): neither says where the block
+ * sits beside the text, so neither is a placement.
  */
 const PLACEMENT_FOR_DIRECTION = { left: 'left', right: 'right', wide: 'wide', fill: 'full' }
 
 /**
+ * The editor's `layout` on a table, as the vocabulary's `placement`: `wide`
+ * takes the table out of the text column; `center`, the text column, is no
+ * placement at all.
+ */
+const PLACEMENT_FOR_TABLE_LAYOUT = { wide: 'wide' }
+
+/**
  * An editor image's or video's attrs in the vocabulary: the kept ones, plus
  * `placement` from `direction` and `author` from `credit`. A node that already
- * holds the vocabulary's word keeps it — starter content builds `ImageBlock`
- * with `placement` (semantic-parser's `buildDoc`). ⛔ Until 2026-10-15 both
- * editor words were dropped, so a pull lost where an image sat and who took it.
+ * holds the vocabulary's word keeps it. ⛔ Until 2026-10-15 both editor words
+ * were dropped, so a pull lost where an image sat and who took it.
  */
 function editorImageAttrs(attrs) {
   const out = keptImageAttrs(attrs)
@@ -213,6 +222,18 @@ function mapUniwebIcon(node) {
 }
 
 /**
+ * A table holding the editor's `layout`, with the vocabulary's `placement`
+ * instead. A table that holds a placement already keeps it.
+ * @returns {Object|null} the table, or null when it holds no `layout`
+ */
+function mapTableLayout(node) {
+  const { layout, ...attrs } = node.attrs || {}
+  if (layout === undefined) return null
+  const placement = attrs.placement || PLACEMENT_FOR_TABLE_LAYOUT[layout]
+  return { ...node, attrs: placement ? { ...attrs, placement } : attrs }
+}
+
+/**
  * Map a single node from editor dialect to framework dialect.
  * @returns {Object|null} a framework-dialect node, or null when there is
  *   no faithful mapping (the original node is then kept and reported by
@@ -230,6 +251,8 @@ function mapEditorNode(node) {
     case 'UniwebIcon':
     case 'Icon':
       return mapUniwebIcon(node)
+    case 'table':
+      return mapTableLayout(node)
     case 'emoji':
       // The node carries the character alongside a name; the character is the
       // whole markdown form. Guarded rather than assumed to be populated.

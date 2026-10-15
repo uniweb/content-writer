@@ -91,11 +91,48 @@ describe('normalizeDialect: editor blocks → framework markdown', () => {
     )
   })
 
-  test('an ImageBlock that holds placement already keeps it — starter content builds one', () => {
+  test.each(['center', 'background', 'small'])(
+    "ImageBlock's direction %s → no placement: none says where it sits beside the text",
+    (direction) => {
+      expectMarkdown(
+        doc({ type: 'ImageBlock', attrs: { url: './harbour.jpg', alt: 'Harbour', direction } }),
+        '![Harbour](./harbour.jpg)'
+      )
+    }
+  )
+
+  test('an ImageBlock that holds placement already keeps it', () => {
     expectMarkdown(
       doc({ type: 'ImageBlock', attrs: { url: './harbour.jpg', alt: 'Harbour', placement: 'wide', direction: 'left' } }),
       '![Harbour](./harbour.jpg){placement=wide}'
     )
+  })
+
+  describe("a table's layout", () => {
+    const TABLE = '| Plan | Price |\n| --- | --- |\n| Basic | $10 |'
+    /** A table as the reader writes it, holding the editor's attrs too. */
+    const tableDoc = (attrs) => {
+      const d = markdownToProseMirror(TABLE)
+      d.content[0].attrs = { ...d.content[0].attrs, ...attrs }
+      return d
+    }
+    const plain = () => proseMirrorToMarkdown(markdownToProseMirror(TABLE))
+
+    test('wide → {placement=wide} on its caption line', () => {
+      expectMarkdown(tableDoc({ layout: 'wide' }), `${plain()}\n\n: {placement=wide}`)
+    })
+
+    test('center → no caption line: the text column is no placement', () => {
+      expectMarkdown(tableDoc({ layout: 'center' }), plain())
+    })
+
+    test('a table that holds a placement keeps it', () => {
+      expectMarkdown(tableDoc({ layout: 'wide', placement: 'full' }), `${plain()}\n\n: {placement=full}`)
+    })
+
+    test('the layout reaches no markdown of its own', () => {
+      expect(normalizeDialect(tableDoc({ layout: 'wide' })).content[0].attrs).not.toHaveProperty('layout')
+    })
   })
 
   test("Video's direction fill → {placement=full}", () => {
