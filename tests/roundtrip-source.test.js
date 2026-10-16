@@ -80,6 +80,21 @@ const CANONICAL_FORMS = {
     // ```math for multi-line. Both read back as the same node.
     current: '$$E = mc^2$$'
   },
+  'canonical-wrap.md': {
+    reason: 'a wrapped paragraph comes back on one line',
+    // A plain newline inside a paragraph is a space (2026-10-16), so the
+    // document holds no wrapping for the writer to restore. A file whose
+    // meaning did not change is not rewritten at all — `@uniweb/build`'s
+    // pull compares meaning first (`sameMarkdownDocument`) — so an author's
+    // own wrapping survives everywhere except a block they changed.
+    current: [
+      'A paragraph an author wrapped at a column, across three lines, comes back on one.',
+      '',
+      '- A list item wrapped onto a second line.',
+      '',
+      '> A quote wrapped onto a second line.'
+    ].join('\n')
+  },
 }
 
 /**

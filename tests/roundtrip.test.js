@@ -384,9 +384,18 @@ describe('Round-trip: Hard breaks', () => {
   test('a soft break stays soft — it is a space, not a break', () => {
     const parsed = markdownToProseMirror('wrapped\nparagraph')
     expect(parsed.content[0].content).toEqual([
-      { type: 'text', text: 'wrapped\nparagraph' }
+      { type: 'text', text: 'wrapped paragraph' }
     ])
-    expect(proseMirrorToMarkdown(parsed).trim()).toBe('wrapped\nparagraph')
+    expect(proseMirrorToMarkdown(parsed).trim()).toBe('wrapped paragraph')
+  })
+
+  test('a newline a stored document still holds is written back as one', () => {
+    // A document read before 2026-10-16 kept a soft break as "\n" in its text.
+    // It reads back as the same space, so writing the newline keeps the file.
+    const stored = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'wrapped\nparagraph' }] }] }
+    const written = proseMirrorToMarkdown(stored).trim()
+    expect(written).toBe('wrapped\nparagraph')
+    expect(markdownToProseMirror(written)).toEqual(markdownToProseMirror('wrapped paragraph'))
   })
 })
 
