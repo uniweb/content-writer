@@ -40,13 +40,12 @@
  * ## What it deliberately does NOT map (left for the serializer's
  * no-silent-drop guard to report — a tracked capability gap)
  *
- *   - Media that carries only a structured asset identifier (no direct
- *     `url`/`src`) or an inline `svg` blob. Media references are written
- *     VERBATIM — the codec does not resolve or render; the kit Image/Video
- *     components resolve the reference at render time. The common case (a
- *     `url`/`src` on the node) is handled by writing it verbatim; an
- *     identifier-only node is the edge (carry it verbatim once its form is
- *     confirmed), and inline `svg` blobs hit the guard.
+ *   - Media with no address (no `url`/`src`) or an inline `svg` blob. An
+ *     address is written VERBATIM — the codec neither resolves nor composes
+ *     one. A node with none has nothing to write, and inline `svg` blobs hit
+ *     the guard. ⛔ This named an identifier-only node as the edge to carry
+ *     once its form was confirmed; since 2026-10-17 no identifier is resolved
+ *     anywhere, so there is no form to wait for.
  *   - `FormBlock` — the editor node carries `activeSchemaId` + filled
  *     `data`; the framework `yaml:form` block carries a form *definition*.
  *     Different shapes; mapping needs a decision, not a guess.
@@ -162,13 +161,13 @@ function editorImageAttrs(attrs) {
 
 /**
  * Map an editor `ImageBlock` to a framework `image` node.
- * @returns {Object|null} framework image node, or null if unresolvable
- *   (identifier-only asset → leave for the guard to report).
+ * @returns {Object|null} framework image node, or null when it holds no
+ *   address (left for the guard to report).
  */
 function mapImageBlock(node) {
   const attrs = node.attrs || {}
   const src = attrs.url || attrs.src
-  if (!src) return null // identifier-only / not yet uploaded → can't resolve to a URL
+  if (!src) return null // no address (an upload not finished) → nothing to write
 
   const out = { src, ...editorImageAttrs(attrs) }
   if (attrs.role && attrs.role !== 'image') out.role = attrs.role
@@ -184,11 +183,11 @@ function mapImageBlock(node) {
 function mapVideo(node) {
   const attrs = node.attrs || {}
   const src = attrs.src
-  if (!src) return null // identifier-only → asset channel, not a URL
+  if (!src) return null // no address → nothing to write
 
   const out = { src, role: 'video', ...editorImageAttrs(attrs) }
-  // The editor carries the poster as a coverImg object; only a real URL
-  // (not an identifier) has a markdown home.
+  // The editor carries the poster as a coverImg object; its `src` is the
+  // poster's address.
   const poster = attrs.coverImg?.src
   if (poster) out.poster = poster
   return { type: 'image', attrs: out }
