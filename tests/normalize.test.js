@@ -56,58 +56,6 @@ describe('normalizeDialect: editor blocks → framework markdown', () => {
     expectMarkdown(doc({ type: 'horizontalRule' }), '---')
   })
 
-  test('ImageBlock (url) → ![](){role}', () => {
-    expectMarkdown(
-      doc({
-        type: 'ImageBlock',
-        attrs: {
-          url: './hero.jpg',
-          role: 'banner',
-          alt: 'Hero',
-          direction: 'center', // the text column — no placement at all
-          info: { identifier: '' },
-        },
-      }),
-      '![Hero](./hero.jpg){role=banner}'
-    )
-  })
-
-  test.each([
-    ['left', 'left'],
-    ['right', 'right'],
-    ['wide', 'wide'],
-    ['fill', 'full'],
-  ])("ImageBlock's direction %s → {placement=%s}", (direction, placement) => {
-    expectMarkdown(
-      doc({ type: 'ImageBlock', attrs: { url: './harbour.jpg', alt: 'Harbour', direction } }),
-      `![Harbour](./harbour.jpg){placement=${placement}}`
-    )
-  })
-
-  test("ImageBlock's credit → {author=…}, the vocabulary's word for it", () => {
-    expectMarkdown(
-      doc({ type: 'ImageBlock', attrs: { url: './harbour.jpg', alt: 'Harbour', credit: 'Jane Doe' } }),
-      '![Harbour](./harbour.jpg){author="Jane Doe"}'
-    )
-  })
-
-  test.each(['center', 'background', 'small'])(
-    "ImageBlock's direction %s → no placement: none says where it sits beside the text",
-    (direction) => {
-      expectMarkdown(
-        doc({ type: 'ImageBlock', attrs: { url: './harbour.jpg', alt: 'Harbour', direction } }),
-        '![Harbour](./harbour.jpg)'
-      )
-    }
-  )
-
-  test('an ImageBlock that holds placement already keeps it', () => {
-    expectMarkdown(
-      doc({ type: 'ImageBlock', attrs: { url: './harbour.jpg', alt: 'Harbour', placement: 'wide', direction: 'left' } }),
-      '![Harbour](./harbour.jpg){placement=wide}'
-    )
-  })
-
   describe("a table's layout", () => {
     const TABLE = '| Plan | Price |\n| --- | --- |\n| Basic | $10 |'
     /** A table as the reader writes it, holding the editor's attrs too. */
@@ -133,42 +81,6 @@ describe('normalizeDialect: editor blocks → framework markdown', () => {
     test('the layout reaches no markdown of its own', () => {
       expect(normalizeDialect(tableDoc({ layout: 'wide' })).content[0].attrs).not.toHaveProperty('layout')
     })
-  })
-
-  test("Video's direction fill → {placement=full}", () => {
-    expectMarkdown(
-      doc({ type: 'Video', attrs: { src: './tour.mp4', alt: 'Tour', direction: 'fill' } }),
-      '![Tour](./tour.mp4){role=video placement=full}'
-    )
-  })
-
-  test('ImageBlock without a role serializes as a plain image', () => {
-    expectMarkdown(
-      doc({ type: 'ImageBlock', attrs: { url: './photo.jpg', alt: 'Photo' } }),
-      '![Photo](./photo.jpg)'
-    )
-  })
-
-  test('Video (src + coverImg) → ![](){role=video poster}', () => {
-    expectMarkdown(
-      doc({
-        type: 'Video',
-        attrs: {
-          src: './demo.mp4',
-          alt: 'Demo',
-          coverImg: { src: './poster.jpg', identifier: null },
-          direction: 'center',
-        },
-      }),
-      '![Demo](./demo.mp4){role=video poster=./poster.jpg}'
-    )
-  })
-
-  test('UniwebIcon (library+name) → ![](lib-name)', () => {
-    expectMarkdown(
-      doc(para({ type: 'UniwebIcon', attrs: { library: 'lu', name: 'home' } })),
-      '![](lu-home)'
-    )
   })
 })
 
@@ -206,14 +118,19 @@ describe('no-silent-drop guard: unmappable nodes are reported, not lost', () => 
     expect(warnings.some((m) => m.includes('FormBlock'))).toBe(true)
   })
 
-  test('media with only an asset identifier (no URL) warns rather than guessing a src', () => {
-    proseMirrorToMarkdown(
-      doc({
-        type: 'ImageBlock',
-        attrs: { url: null, src: null, info: { identifier: 'v1/base.jpg' } },
-      })
-    )
-    expect(warnings.some((m) => m.includes('ImageBlock'))).toBe(true)
+  test.each([
+    { type: 'ImageBlock', attrs: { url: './hero.jpg', alt: 'Hero' } },
+    { type: 'Video', attrs: { src: './tour.mp4', coverImg: { src: './poster.jpg' } } },
+    { type: 'Icon', attrs: { svg: '<svg/>' } },
+  ])("the editor's retired $type is reported and writes nothing", (node) => {
+    // ⛔ Mapped onto `image` until 2026-10-18; the editor saves `image` itself.
+    expect(proseMirrorToMarkdown(doc(node)).trim()).toBe('')
+    expect(warnings.some((m) => m.includes(node.type))).toBe(true)
+  })
+
+  test("the editor's retired UniwebIcon is reported and writes nothing", () => {
+    expect(proseMirrorToMarkdown(doc(para({ type: 'UniwebIcon', attrs: { library: 'lu', name: 'home' } }))).trim()).toBe('')
+    expect(warnings.some((m) => m.includes('UniwebIcon'))).toBe(true)
   })
 
   test('an unmapped mark (highlight) warns but keeps the text', () => {
@@ -347,29 +264,8 @@ describe('editor named inline styles map onto the span mark', () => {
   })
 })
 
-describe('editor icons and emoji', () => {
+describe('editor emoji', () => {
   const inline = n => proseMirrorToMarkdown(doc(para(n))).trim()
-
-  test('the insert path stores a colon-joined family:id name', () => {
-    // What the editor actually emits: one `name`, no `library`. Requiring
-    // both attrs dropped every icon the editor produces.
-    expect(inline({ type: 'UniwebIcon', attrs: { name: 'lucide:star', svg: '<svg/>' } }))
-      .toBe('![](lucide:star)')
-  })
-
-  test('a short-code family uses the compact dash spelling', () => {
-    expect(inline({ type: 'UniwebIcon', attrs: { name: 'lu:star' } })).toBe('![](lu-star)')
-  })
-
-  test('the separate library+name form still maps', () => {
-    expect(inline({ type: 'UniwebIcon', attrs: { library: 'lu', name: 'star' } })).toBe('![](lu-star)')
-  })
-
-  test('the inlined svg blob is never written into markdown', () => {
-    const md = inline({ type: 'UniwebIcon', attrs: { name: 'lucide:star', svg: '<svg viewBox="0 0 24 24"/>' } })
-    expect(md).not.toContain('<svg')
-    expect(md).not.toContain('viewBox')
-  })
 
   test('emoji carries its character', () => {
     expect(inline({ type: 'emoji', attrs: { name: 'star', emoji: '⭐' } })).toBe('⭐')

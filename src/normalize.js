@@ -7,9 +7,8 @@
  *     content-writer's serializers are written against (`image` with a
  *     `role`, `divider`, `dataBlock`, `inset_ref`, marks `bold/italic/
  *     link/button/code/span`), and
- *   - the **editor (TipTap) dialect** (`ImageBlock`, `Video`,
- *     `UniwebIcon`/`Icon`, `DividerBlock`, `card-group`, `FormBlock`,
- *     colour/highlight marks …).
+ *   - the **editor (TipTap) dialect** (`DividerBlock`, `card-group`,
+ *     `FormBlock`, colour/highlight marks …).
  *
  * A ProseMirror document handed to content-writer may be in either dialect,
  * or a mix (file-origin content is framework-dialect; editor-authored
@@ -26,26 +25,17 @@
  * ## What this maps today (zero-guess cells only)
  *
  *   - `DividerBlock` / `horizontalRule` → `divider`
- *   - `Video`      → `image{role:'video'}`  — only when a real media URL
- *                    is present (`src`)
- *   - `ImageBlock` → `image`                — only when a real URL is
- *                    present (`url`/`src`)
- *   - `UniwebIcon` → `image{role:'icon'}`   — only the `library`+`name`
- *                    form (`![](lib-name)`)
- *   - on `ImageBlock` and `Video`, the editor's words for two of the
- *     vocabulary's: `direction` → `placement` (`editorImageAttrs`) and
- *     `credit` → `author`
  *   - on a `table`, the editor's `layout` → `placement` (`mapTableLayout`)
+ *   - `emoji` → its character
  *
  * ## What it deliberately does NOT map (left for the serializer's
  * no-silent-drop guard to report — a tracked capability gap)
  *
- *   - Media with no address (no `url`/`src`) or an inline `svg` blob. An
- *     address is written VERBATIM — the codec neither resolves nor composes
- *     one. A node with none has nothing to write, and inline `svg` blobs hit
- *     the guard. ⛔ This named an identifier-only node as the edge to carry
- *     once its form was confirmed; since 2026-10-17 no identifier is resolved
- *     anywhere, so there is no form to wait for.
+ *   - The editor's media and icon nodes — `ImageBlock`, `Video`, `UniwebIcon`,
+ *     `Icon`. ⛔ Until 2026-10-18 they were mapped onto `image`, with
+ *     `direction` → `placement` and `credit` → `author`; the editor saves
+ *     framework's `image` since 2026-10-17, and the mapping was removed with
+ *     the rest of its old vocabulary [Diego, 2026-10-18].
  *   - `FormBlock` — the editor node carries `activeSchemaId` + filled
  *     `data`; the framework `yaml:form` block carries a form *definition*.
  *     Different shapes; mapping needs a decision, not a guess.
@@ -71,154 +61,11 @@
  */
 
 /**
- * Editor-transient image attrs that have no on-disk markdown meaning and
- * are dropped by design (not data loss — they're editor UI/upload state, or
- * presentation the vocabulary leaves out: `theme` and `filter` [Diego,
- * 2026-10-14]). `url` and `src` are the address, written as the node's own.
- * `direction` and `credit` are not here: they are the editor's words for the
- * vocabulary's `placement` and `author`, and are mapped (`editorImageAttrs`).
- */
-const DROPPED_IMAGE_ATTRS = new Set([
-  'url',
-  'src',
-  'info',
-  'theme',
-  'filter',
-  'targetId',
-  'contentId',
-  'uploading',
-  'uploadingObject',
-  'loading_progress',
-  'aspect_ratio',
-])
-
-/**
- * Markdown-meaningful image/media attrs we carry through, when present
- * with a real value. Mirrors content-reader's image schema + the media
- * attrs documented in content-structure.md (role/poster/href/etc.).
- */
-const KEPT_IMAGE_ATTRS = [
-  'alt',
-  'caption',
-  'href',
-  'target',
-  'width',
-  'height',
-  'loading',
-  'poster',
-  'preview',
-  'autoplay',
-  'muted',
-  'loop',
-  'controls',
-  'fit',
-  'position',
-  'class',
-  'id',
-]
-
-/** Pick the non-empty markdown-meaningful attrs from an editor image node. */
-function keptImageAttrs(attrs) {
-  const out = {}
-  for (const key of KEPT_IMAGE_ATTRS) {
-    const value = attrs[key]
-    if (value === null || value === undefined || value === '') continue
-    out[key] = value
-  }
-  return out
-}
-
-/**
- * The editor's `direction` — where an image or a video sits in the text — as
- * the vocabulary's `placement`. `center` is the text column, which is no
- * placement at all, and so are `background` (a short strip the picture covers)
- * and `small` (the picture kept short, centred): neither says where the block
- * sits beside the text, so neither is a placement.
- */
-const PLACEMENT_FOR_DIRECTION = { left: 'left', right: 'right', wide: 'wide', fill: 'full' }
-
-/**
  * The editor's `layout` on a table, as the vocabulary's `placement`: `wide`
  * takes the table out of the text column; `center`, the text column, is no
  * placement at all.
  */
 const PLACEMENT_FOR_TABLE_LAYOUT = { wide: 'wide' }
-
-/**
- * An editor image's or video's attrs in the vocabulary: the kept ones, plus
- * `placement` from `direction` and `author` from `credit`. A node that already
- * holds the vocabulary's word keeps it. ⛔ Until 2026-10-15 both editor words
- * were dropped, so a pull lost where an image sat and who took it.
- */
-function editorImageAttrs(attrs) {
-  const out = keptImageAttrs(attrs)
-  const placement = attrs.placement || PLACEMENT_FOR_DIRECTION[attrs.direction]
-  if (placement) out.placement = placement
-  const author = attrs.author || attrs.credit
-  if (author) out.author = author
-  return out
-}
-
-/**
- * Map an editor `ImageBlock` to a framework `image` node.
- * @returns {Object|null} framework image node, or null when it holds no
- *   address (left for the guard to report).
- */
-function mapImageBlock(node) {
-  const attrs = node.attrs || {}
-  const src = attrs.url || attrs.src
-  if (!src) return null // no address (an upload not finished) → nothing to write
-
-  const out = { src, ...editorImageAttrs(attrs) }
-  if (attrs.role && attrs.role !== 'image') out.role = attrs.role
-  return { type: 'image', attrs: out }
-}
-
-/**
- * Map an editor `Video` to a framework `image{role:'video'}` node
- * (the framework expresses video as media-by-role; there is no Video
- * node by design).
- * @returns {Object|null}
- */
-function mapVideo(node) {
-  const attrs = node.attrs || {}
-  const src = attrs.src
-  if (!src) return null // no address → nothing to write
-
-  const out = { src, role: 'video', ...editorImageAttrs(attrs) }
-  // The editor carries the poster as a coverImg object; its `src` is the
-  // poster's address.
-  const poster = attrs.coverImg?.src
-  if (poster) out.poster = poster
-  return { type: 'image', attrs: out }
-}
-
-/**
- * Map an editor `UniwebIcon` to a framework `image{role:'icon'}` node.
- * Only the `library`+`name` form (e.g. `![](lu-home)`) is mapped — an
- * inline `svg` blob or a bare `url` has no clean markdown home yet.
- * @returns {Object|null}
- */
-function mapUniwebIcon(node) {
-  const attrs = node.attrs || {}
-
-  // The insert path stores a single colon-joined `family:id` name (built from
-  // the icon CDN URL) and leaves `library` unset — so requiring both dropped
-  // every icon the editor actually produces. The separate-attr form is kept
-  // for content that already carries it.
-  let { library, name } = attrs
-  if (!library && typeof name === 'string' && name.includes(':')) {
-    const [family, ...rest] = name.split(':')
-    library = family
-    name = rest.join(':')
-  }
-  if (!library || !name) return null
-
-  const out = { role: 'icon', library, name }
-  if (attrs.size) out.size = attrs.size
-  if (attrs.color) out.color = attrs.color
-  return { type: 'image', attrs: out }
-}
 
 /**
  * A table holding the editor's `layout`, with the vocabulary's `placement`
@@ -243,13 +90,6 @@ function mapEditorNode(node) {
     case 'DividerBlock':
     case 'horizontalRule':
       return { type: 'divider', attrs: {} }
-    case 'ImageBlock':
-      return mapImageBlock(node)
-    case 'Video':
-      return mapVideo(node)
-    case 'UniwebIcon':
-    case 'Icon':
-      return mapUniwebIcon(node)
     case 'table':
       return mapTableLayout(node)
     case 'emoji':
