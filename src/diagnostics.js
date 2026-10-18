@@ -9,10 +9,10 @@
  *
  * The contract now: a node or mark the serializer can't represent is
  * still dropped from the output (we can't invent a markdown form for it),
- * but it is reported loudly instead of silently. Editor-dialect content
- * should be run through `normalizeDialect` (normalize.js) first, which
- * maps the constructs that DO have a faithful markdown form; whatever
- * reaches the serializer unmapped is a genuine, tracked capability gap.
+ * but it is reported loudly instead of silently — a type outside the
+ * vocabulary, or a genuine, tracked capability gap. ⛔ Until 2026-10-18 an
+ * editor's own names were mapped onto the vocabulary first
+ * (`normalizeDialect`); an editor writes the vocabulary itself now.
  *
  * Warnings dedupe per type so a build pipeline processing many documents
  * reports each unmapped construct once, not once per occurrence.
@@ -82,9 +82,9 @@ export function warnUnmappedNode(node) {
   warnedNodes.add(type)
   report(
     `[content-writer] No markdown serializer for node type "${type}" — ` +
-      `it was omitted from the output. If this is editor-dialect content, ` +
-      `normalize it first (see @uniweb/content-writer normalizeDialect); ` +
-      `otherwise this is a tracked capability gap.`
+      `it was omitted from the output. A document holds the content ` +
+      `vocabulary (@uniweb/content-reader's getBaseSchema); a type outside ` +
+      `it has no markdown form, and one inside it is a tracked capability gap.`
   )
 }
 

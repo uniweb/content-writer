@@ -21,7 +21,6 @@ import {
   serializeMathDisplay,
   setSerializer,
 } from './nodes.js'
-import { normalizeDialect } from './normalize.js'
 import { warnUnmappedNode, collectOmittedNodes } from './diagnostics.js'
 
 const NODE_SERIALIZERS = {
@@ -50,9 +49,8 @@ export function serializeNode(node) {
   const serializer = NODE_SERIALIZERS[node.type]
   if (!serializer) {
     // No silent drops: an unmapped node is still omitted (we have no
-    // markdown form for it) but reported loudly. Editor-dialect content
-    // should be normalized first (normalizeDialect); whatever reaches
-    // here unmapped is a tracked capability gap (§8).
+    // markdown form for it) but reported loudly — a node outside the
+    // vocabulary, or a tracked capability gap (§8).
     warnUnmappedNode(node)
     return null
   }
@@ -83,10 +81,12 @@ export function unwritableNodes(doc) {
 export function serializeDoc(doc) {
   if (!doc?.content) return ''
 
-  // Normalize editor-dialect (or mixed-dialect) input onto the framework
-  // dialect the node serializers consume. No-op for framework-dialect docs.
-  doc = normalizeDialect(doc)
-
+  // ⭐ The document holds the vocabulary, and nothing maps an editor's own names
+  // onto it. ⛔ Until 2026-10-18 `normalizeDialect` ran here first: an editor's
+  // `DividerBlock` and `horizontalRule` became a `divider`, a table's `layout` a
+  // `placement`, an `emoji` its character, and the `textStyle` and `highlight`
+  // marks a `span`. Each is now reported and left out, like any node or mark
+  // outside the vocabulary.
   return doc.content
     .map(node => serializeNode(node))
     .filter(s => s !== null && s !== undefined)

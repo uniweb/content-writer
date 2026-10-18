@@ -132,6 +132,12 @@ import { proseMirrorToMarkdown } from '@uniweb/content-writer'
 const markdown = proseMirrorToMarkdown(editor.getJSON())
 ```
 
+The document must hold the content vocabulary: the nodes and marks that
+`getBaseSchema()` from `@uniweb/content-reader` declares. A node or mark outside
+it has no markdown form here, so it is left out of the output and reported. A
+stock TipTap `horizontalRule`, for example, should be written as the
+vocabulary's `divider`.
+
 ## Extended Syntax
 
 The serializer handles the same extended syntax as `@uniweb/content-reader`:

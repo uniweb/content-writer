@@ -9,7 +9,6 @@ export { serializeDoc as proseMirrorToMarkdown, unwritableNodes } from './serial
 export { serializeInlineContent } from './marks.js'
 export { serializeFrontmatter } from './frontmatter.js'
 export { docToPlainText, docSummaryText } from './plain-text.js'
-export { normalizeDialect } from './normalize.js'
 export { setDiagnosticsReporter, resetDiagnostics } from './diagnostics.js'
 
 import { serializeDoc } from './serializer.js'
