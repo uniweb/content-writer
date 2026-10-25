@@ -19,7 +19,7 @@
     "author": "Proximify Inc.",
     "license": "GPL-3.0-or-later",
     "dependencies": {
-        "js-yaml": "^4.1.0"
+        "js-yaml": "^4.3.2"
     },
     "devDependencies": {
         "@uniweb/content-reader": "workspace:*",
