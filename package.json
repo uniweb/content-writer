@@ -17,7 +17,7 @@
         "serializer"
     ],
     "author": "Proximify Inc.",
-    "license": "GPL-3.0-or-later",
+    "license": "Apache-2.0",
     "dependencies": {
         "js-yaml": "^4.3.2"
     },
