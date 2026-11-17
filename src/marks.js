@@ -10,11 +10,47 @@ import { warnUnmappedMark, warnUnmappedNode } from './diagnostics.js'
 /**
  * Marks the markdown serializer can represent. Any other mark on an
  * inline node has its styling dropped (the text is still emitted) and is
- * reported by the no-silent-drop guard — e.g. editor-dialect `highlight`,
- * `textStyle` (colour), `highlight`, `underline`, `uniqueID`, which need a
- * named-inline-style mapping decision.
+ * reported by the no-silent-drop guard — e.g. an editor's `highlight`,
+ * `textStyle` (colour) or `uniqueID`, none of which a stored text holds.
  */
-const KNOWN_MARKS = new Set(['bold', 'italic', 'code', 'strike', 'link', 'button', 'span'])
+const KNOWN_MARKS = new Set(['bold', 'italic', 'code', 'strike', 'underline', 'superscript', 'subscript', 'link', 'button', 'span'])
+
+/**
+ * The marks written inside a bracketed span, with the name each is written as:
+ * `[x]{underline}`, `[2]{sup}`, `[2]{sub}` — content-reader's `MARK_NAMES`, read
+ * back as the same marks (2026-11-17). A text's span and these share one bracket
+ * (`withOneBracket`).
+ */
+const BRACKET_NAMES = { underline: 'underline', superscript: 'sup', subscript: 'sub' }
+
+/**
+ * A text node's marks as markdown can hold them: its span and the marks a span's
+ * bracket writes (`BRACKET_NAMES`) merged into one span, where the outermost of
+ * them was, and never around a link or a button.
+ *
+ * The reader reads formatting inside a bracket (`[**x** y]{accent}`) and a bracket
+ * inside a link (`[[2]{sup}](url)`), but no bracket inside another and no link
+ * inside a bracket. So a text's brackets become one — `[x]{underline accent}`,
+ * never `[[x]{underline}]{accent}` — and a link goes around it. Anything else
+ * keeps the order the reader gave, so an author's file is written back as it was.
+ */
+function withOneBracket(node) {
+  const marks = node?.type === 'text' ? node.marks : null
+  if (!marks?.some(isBracketMark)) return node
+  const attrs = {}
+  for (const type of Object.keys(BRACKET_NAMES)) {
+    if (marks.some((m) => m.type === type)) attrs[BRACKET_NAMES[type]] = true
+  }
+  for (const m of marks) if (m.type === 'span') Object.assign(attrs, m.attrs || {})
+  const last = marks.findLastIndex(isBracketMark)
+  const rest = marks.filter((m) => !isBracketMark(m))
+  const inside = marks.slice(0, last).filter((m) => !isBracketMark(m)).length
+  const link = rest.findIndex((m) => m.type === 'link' || m.type === 'button')
+  const at = link === -1 ? inside : Math.min(inside, link)
+  return { ...node, marks: [...rest.slice(0, at), { type: 'span', attrs }, ...rest.slice(at)] }
+}
+
+const isBracketMark = (m) => m.type === 'span' || !!BRACKET_NAMES[m.type]
 
 /** Report any inline mark we have no markdown form for (deduped per type). */
 function reportUnknownMarks(content) {
@@ -237,7 +273,7 @@ export function serializeInlineContent(content, { lineBreak = '\\\n' } = {}) {
   // No silent drops: flag any mark we can't represent before serializing.
   reportUnknownMarks(content)
 
-  return serializeRuns(mergeAdjacentText(content), { lineBreak, literal: false })
+  return serializeRuns(mergeAdjacentText(content.map(withOneBracket)), { lineBreak, literal: false })
 }
 
 /**
